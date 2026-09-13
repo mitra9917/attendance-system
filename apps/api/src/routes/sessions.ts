@@ -87,14 +87,37 @@ router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> 
 });
 
 // GET /api/sessions/:id  — session detail with enriched records (student name + regNo + serialNumber)
+// Also reconciles: if students were enrolled AFTER the session started, they won't have
+// AttendanceRecord rows yet. We add NOT_MARKED records for them on-the-fly.
 router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
   try {
     const session = await db.orm.public.AttendanceSession.where({ id }).first();
     if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
 
-    const rawRecords = await db.orm.public.AttendanceRecord.where({ sessionId: id }).all();
     const course = await db.orm.public.Course.first({ id: session.courseId });
+
+    // Get all current enrollments for this course
+    const enrollments = await db.orm.public.Enrollment.where({ courseId: session.courseId }).all();
+
+    // Get existing attendance records for this session
+    let rawRecords = await db.orm.public.AttendanceRecord.where({ sessionId: id }).all();
+    const existingStudentIds = new Set(rawRecords.map(r => r.studentId));
+
+    // For any enrolled student missing a record (enrolled after session started),
+    // create a NOT_MARKED record so they appear correctly — not as ABSENT
+    if (session.status !== 'FINALIZED') {
+      for (const enrollment of enrollments) {
+        if (!existingStudentIds.has(enrollment.studentId)) {
+          const newRecord = await db.orm.public.AttendanceRecord.create({
+            sessionId: id,
+            studentId: enrollment.studentId,
+            status: 'NOT_MARKED',
+          });
+          rawRecords = [...rawRecords, newRecord];
+        }
+      }
+    }
 
     // Enrich records with student info + serialNumber from enrollment
     const records = await Promise.all(
@@ -165,12 +188,23 @@ router.patch('/:id/records/:studentId', requireAuth, async (req: Request, res: R
 });
 
 // POST /api/sessions/:id/finalize  — finalize session
+// On finalize, all NOT_MARKED records are converted to ABSENT.
+// ABSENT only means the session is over and the student was not marked present.
 router.post('/:id/finalize', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
   try {
     const session = await db.orm.public.AttendanceSession.where({ id }).first();
     if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
     if (session.status === 'FINALIZED') { res.status(400).json({ error: 'Already finalized' }); return; }
+
+    // Mark all NOT_MARKED students as ABSENT before finalizing
+    const notMarkedRecords = await db.orm.public.AttendanceRecord.where({ sessionId: id, status: 'NOT_MARKED' }).all();
+    for (const record of notMarkedRecords) {
+      await db.orm.public.AttendanceRecord.where({ id: record.id }).update({
+        status: 'ABSENT',
+        markedAt: new Date().toISOString(),
+      });
+    }
 
     await db.orm.public.AttendanceSession.where({ id }).update({
       status: 'FINALIZED',

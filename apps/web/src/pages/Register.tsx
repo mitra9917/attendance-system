@@ -213,23 +213,22 @@ function RegisterStudent() {
     setMessage(null);
 
     try {
-      let student;
-      try {
-        student = await fetchApi('/students', {
-          method: 'POST',
-          body: JSON.stringify({
-            registrationNumber: regNo.trim(),
-            name: name.trim(),
-            email: email.trim() || undefined,
-            photoUrl: photoUrl.trim() || undefined,
-          }),
-        });
-      } catch (err: any) {
-        if (err.message?.includes('already exists')) {
-          throw new Error(`Registration number "${regNo}" already exists.`);
-        }
-        throw err;
-      }
+      // Normalize registration number: trim and uppercase before sending
+      const normalizedRegNo = regNo.trim().toUpperCase();
+
+      // POST /api/students returns 201 for a new student, or 200 (with _reused:true) for an
+      // existing student with the same registration number. Either way, proceed to enrollment.
+      const student = await fetchApi('/students', {
+        method: 'POST',
+        body: JSON.stringify({
+          registrationNumber: normalizedRegNo,
+          name: name.trim(),
+          email: email.trim() || undefined,
+          photoUrl: photoUrl.trim() || undefined,
+        }),
+      });
+
+      const isReused = !!student._reused;
 
       if (enrollInCourse && selectedCourseId) {
         try {
@@ -239,10 +238,11 @@ function RegisterStudent() {
           });
           const course = courses.find(c => String(c.id) === selectedCourseId);
           const courseName = course ? `${course.code} — ${course.name}` : selectedCourseId;
-          setMessage({ type: 'success', text: `Student "${student.name}" registered and enrolled in ${courseName}!` });
+          const prefix = isReused ? `Existing student "${student.name}"` : `Student "${student.name}"`;
+          setMessage({ type: 'success', text: `${prefix} enrolled in ${courseName}!` });
         } catch (err: any) {
           if (err.message?.includes('already enrolled')) {
-            setMessage({ type: 'success', text: `Student "${student.name}" registered. Note: Already enrolled in this course.` });
+            setMessage({ type: 'error', text: `"${student.name}" (${normalizedRegNo}) is already enrolled in this course.` });
           } else {
             throw err;
           }

@@ -29,17 +29,32 @@ router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<voi
 });
 
 // POST /api/students  (Admin only)
+// If a student with the same registration number already exists, we REUSE that record
+// (same student can enroll in multiple courses). Returns 201 for new, 200 for existing.
 router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void> => {
   const { registrationNumber, name, email } = req.body;
   if (!registrationNumber || !name) {
     res.status(400).json({ error: 'registrationNumber and name are required' });
     return;
   }
-  try {
-    const existing = await db.orm.public.Student.where({ registrationNumber }).first();
-    if (existing) { res.status(409).json({ error: 'Registration number already exists' }); return; }
 
-    const student = await db.orm.public.Student.create({ registrationNumber, name, email: email || null, isActive: true });
+  // Normalize: trim whitespace, convert to uppercase for consistent storage
+  const normalizedRegNo = registrationNumber.trim().toUpperCase();
+
+  try {
+    const existing = await db.orm.public.Student.where({ registrationNumber: normalizedRegNo }).first();
+    if (existing) {
+      // Return the existing student so the caller can proceed with enrollment
+      res.status(200).json({ ...existing, _reused: true });
+      return;
+    }
+
+    const student = await db.orm.public.Student.create({
+      registrationNumber: normalizedRegNo,
+      name: name.trim(),
+      email: email?.trim() || null,
+      isActive: true,
+    });
     res.status(201).json(student);
   } catch (err) {
     console.error(err);

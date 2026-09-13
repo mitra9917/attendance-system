@@ -26,7 +26,7 @@ router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> 
           serialNumber: e.serialNumber,
           enrolledAt: e.enrolledAt,
           student: student ? { id: student.id, name: student.name, registrationNumber: student.registrationNumber, photoUrl: student.photoUrl } : null,
-          course: course ? { id: course.id, code: course.code, name: course.name, slotId: course.slotId } : null,
+          course: course ? { id: course.id, code: course.code, name: course.name, slotPattern: course.slotPattern } : null,
         };
       })
     );
@@ -38,6 +38,8 @@ router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> 
 });
 
 // POST /api/enrollments  (Admin) — enroll a student in a course
+// A student (by normalized registration number) must be unique within a course,
+// but the same student can be enrolled in multiple different courses.
 router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void> => {
   const { courseId, studentId } = req.body;
   if (!courseId || !studentId) {
@@ -45,13 +47,27 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
     return;
   }
   try {
-    // Check for duplicate
+    // Check for duplicate enrollment (same student, same course)
     const dup = await db.orm.public.Enrollment.where({ courseId, studentId }).first();
     if (dup) { res.status(409).json({ error: 'Student already enrolled in this course' }); return; }
 
+    // Also enforce: no two enrollments in the same course can share the same registrationNumber.
+    // Since registrationNumber is on Student and is already normalized to uppercase, we just
+    // check if another student with the same registrationNumber is already enrolled in this course.
+    const student = await db.orm.public.Student.where({ id: studentId }).first();
+    if (!student) { res.status(404).json({ error: 'Student not found' }); return; }
+
+    const existingEnrollmentsInCourse = await db.orm.public.Enrollment.where({ courseId }).all();
+    for (const e of existingEnrollmentsInCourse) {
+      const s = await db.orm.public.Student.where({ id: e.studentId }).first();
+      if (s && s.registrationNumber.toUpperCase() === student.registrationNumber.toUpperCase()) {
+        res.status(409).json({ error: `Registration number "${student.registrationNumber}" is already enrolled in this course` });
+        return;
+      }
+    }
+
     // Compute next serialNumber within the course
-    const existing = await db.orm.public.Enrollment.where({ courseId }).all();
-    const serialNumber = existing.length + 1;
+    const serialNumber = existingEnrollmentsInCourse.length + 1;
 
     const enrollment = await db.orm.public.Enrollment.create({ courseId, studentId, serialNumber });
     res.status(201).json(enrollment);
