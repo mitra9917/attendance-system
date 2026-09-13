@@ -1,0 +1,154 @@
+/* ── Setup Screen ── */
+.attendance-setup { max-width: 560px; }
+.attendance-setup .page-header { margin-bottom: 2rem; }
+
+.setup-card {
+  padding: 2.5rem 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.25rem;
+}
+
+.setup-icon {
+  width: 64px; height: 64px;
+  background: rgba(99,102,241,0.15);
+  border-radius: var(--radius-lg);
+  display: flex; align-items: center; justify-content: center;
+  color: #818cf8;
+}
+
+.setup-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  text-align: left;
+}
+
+.start-btn {
+  margin-top: 0.5rem;
+  width: 100%;
+  padding: 0.875rem;
+  font-size: 1rem;
+}
+
+.empty-hint {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.empty-hint a { color: var(--accent-primary); }
+
+/* ── Session Screen ── */
+.attendance-session { display: flex; flex-direction: column; gap: 1.5rem; }
+
+.session-actions { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+
+.session-body {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+/* Summary counts */
+.att-summary {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.att-stat {
+  padding: 0.5rem 1.25rem;
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.att-stat span { font-size: 1.4rem; font-weight: 700; }
+.att-stat.present { background: rgba(16,185,129,0.1); color: var(--success); border: 1px solid rgba(16,185,129,0.2); }
+.att-stat.absent  { background: rgba(239,68,68,0.1);  color: var(--danger);  border: 1px solid rgba(239,68,68,0.2);  }
+.att-stat.unmarked{ background: rgba(148,163,184,0.08); color: var(--text-secondary); border: 1px solid var(--border-color); }
+
+/* Student Grid */
+.student-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.student-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius-md);
+  transition: transform 0.15s;
+}
+.student-card:hover { transform: translateX(2px); }
+
+.student-card.status-present { border-left: 3px solid var(--success); }
+.student-card.status-absent  { border-left: 3px solid var(--danger);  }
+.student-card.status-not_marked { border-left: 3px solid transparent; }
+
+.student-avatar {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(99,102,241,0.3), rgba(168,85,247,0.2));
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 1rem; flex-shrink: 0;
+}
+
+.student-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.student-name {
+  font-weight: 600;
+  font-size: 0.925rem;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.student-reg { font-size: 0.775rem; color: var(--text-muted); font-family: monospace; }
+.student-serial { font-size: 0.7rem; color: var(--text-muted); }
+
+.att-buttons { display: flex; gap: 0.375rem; }
+
+/* Camera Panel */
+.camera-panel {
+  padding: 1.5rem;
+  text-align: center;
+  position: sticky;
+  top: 1rem;
+}
+.camera-placeholder {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 1rem; padding: 1.5rem 0;
+}
+.camera-icon { font-size: 3rem; }
+.camera-hint {
+  background: rgba(99,102,241,0.08);
+  border: 1px solid rgba(99,102,241,0.15);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.camera-hint strong { color: var(--text-primary); }
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+  .session-body { grid-template-columns: 1fr; }
+  .camera-panel { position: static; }
+}
+@media (max-width: 480px) {
+  .att-buttons { flex-direction: column; }
+  .setup-card { padding: 1.75rem 1.25rem; }
+}

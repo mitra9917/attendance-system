@@ -1,0 +1,147 @@
+// schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   // "ADMIN" | "TEACHER"
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions     AttendanceSession[]
+  auditLogs    AuditLog[]
+}
+
+model Student {
+  id                 Int      @id @default(autoincrement())
+  registrationNumber String   @unique
+  name               String
+  email              String?
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  enrollments        Enrollment[]
+  faceTemplates      FaceTemplate[]
+  attendanceRecords  AttendanceRecord[]
+}
+
+model Course {
+  id        Int      @id @default(autoincrement())
+  code      String
+  name      String
+  section   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([code, section])
+
+  enrollments Enrollment[]
+  sessions    AttendanceSession[]
+}
+
+model Slot {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  startTime String   // "09:00"
+  endTime   String   // "10:00"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions  AttendanceSession[]
+}
+
+model Enrollment {
+  id           Int      @id @default(autoincrement())
+  courseId     Int
+  studentId    Int
+  serialNumber Int      // unique within a course, NOT globally unique
+  enrolledAt   DateTime @default(now())
+
+  course   Course  @relation(fields: [courseId], references: [id])
+  student  Student @relation(fields: [studentId], references: [id])
+
+  @@unique([courseId, studentId])
+  @@unique([courseId, serialNumber])
+  @@index([courseId])
+}
+
+model FaceTemplate {
+  id           Int      @id @default(autoincrement())
+  studentId    Int
+  embedding    Json     // PostgreSQL JSONB array of 128 floats
+  modelName    String   // "face-api.js-resnet34"
+  modelVersion String   // "0.22.2"
+  isActive     Boolean  @default(true)
+  capturedAt   DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@index([studentId])
+}
+
+model AttendanceSession {
+  id        Int      @id @default(autoincrement())
+  courseId  Int
+  slotId    Int
+  teacherId Int
+  date      String   // "YYYY-MM-DD"
+  status    String   @default("ONGOING")  // "ONGOING" | "FINALIZED"
+  startedAt DateTime @default(now())
+  finalizedAt DateTime?
+
+  course   Course @relation(fields: [courseId], references: [id])
+  slot     Slot   @relation(fields: [slotId], references: [id])
+  teacher  User   @relation(fields: [teacherId], references: [id])
+  records  AttendanceRecord[]
+
+  @@unique([courseId, slotId, date])
+  @@index([courseId, date])
+}
+
+model AttendanceRecord {
+  id         Int      @id @default(autoincrement())
+  sessionId  Int
+  studentId  Int
+  status     String   // "NOT_MARKED" | "PRESENT" | "ABSENT"
+  method     String?  // "FACE" | "MANUAL" | null
+  confidence Float?   // Euclidean distance (lower = better match)
+  markedAt   DateTime?
+  updatedAt  DateTime @updatedAt
+
+  session AttendanceSession @relation(fields: [sessionId], references: [id])
+  student Student           @relation(fields: [studentId], references: [id])
+
+  @@unique([sessionId, studentId])  // Prevents duplicates at DB level
+  @@index([sessionId])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  action    String   // e.g., "ATTENDANCE_MARKED", "FACE_ENROLLED"
+  entityType String? // e.g., "Student", "AttendanceSession"
+  entityId  Int?
+  details   String?  // JSON metadata (NO passwords, NO embeddings)
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}

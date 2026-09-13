@@ -1,0 +1,141 @@
+// use prisma-8
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String   // "ADMIN" | "TEACHER"
+  isActive     Boolean  @default(true)
+  createdAt    TimestamptzString @default(now())
+  updatedAt    temporal.updatedAtString()
+
+  sessions     AttendanceSession[]
+  auditLogs    AuditLog[]
+}
+
+model Student {
+  id                 Int      @id @default(autoincrement())
+  registrationNumber String   @unique
+  name               String
+  email              String?
+  photoUrl           String?  // URL/path to student photo (for face enrollment later)
+  isActive           Boolean  @default(true)
+  createdAt          TimestamptzString @default(now())
+  updatedAt          temporal.updatedAtString()
+
+  enrollments        Enrollment[]
+  faceTemplates      FaceTemplate[]
+  attendanceRecords  AttendanceRecord[]
+}
+
+model Course {
+  id        Int      @id @default(autoincrement())
+  code      String
+  name      String
+  slotId    Int
+  isActive  Boolean  @default(true)
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  @@unique([code, slotId])
+
+  slot        Slot        @relation(fields: [slotId], references: [id])
+  enrollments Enrollment[]
+  sessions    AttendanceSession[]
+}
+
+model Slot {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  startTime String   // "09:00"
+  endTime   String   // "10:00"
+  isActive  Boolean  @default(true)
+  createdAt TimestamptzString @default(now())
+  updatedAt temporal.updatedAtString()
+
+  courses   Course[]
+  sessions  AttendanceSession[]
+}
+
+model Enrollment {
+  id           Int      @id @default(autoincrement())
+  courseId     Int
+  studentId    Int
+  serialNumber Int      // unique within a course, NOT globally unique
+  enrolledAt   TimestamptzString @default(now())
+
+  course   Course  @relation(fields: [courseId], references: [id])
+  student  Student @relation(fields: [studentId], references: [id])
+
+  @@unique([courseId, studentId])
+  @@unique([courseId, serialNumber])
+  @@index([courseId])
+}
+
+model FaceTemplate {
+  id           Int      @id @default(autoincrement())
+  studentId    Int
+  embedding    Json     // PostgreSQL JSONB array of 128 floats
+  modelName    String   // "face-api.js-resnet34"
+  modelVersion String   // "0.22.2"
+  isActive     Boolean  @default(true)
+  capturedAt   TimestamptzString @default(now())
+
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@index([studentId])
+}
+
+model AttendanceSession {
+  id        Int      @id @default(autoincrement())
+  courseId  Int
+  slotId    Int
+  teacherId Int
+  date      String   // "YYYY-MM-DD"
+  status    String   @default("ONGOING")  // "ONGOING" | "FINALIZED"
+  startedAt TimestamptzString @default(now())
+  finalizedAt TimestamptzString?
+
+  course   Course @relation(fields: [courseId], references: [id])
+  slot     Slot   @relation(fields: [slotId], references: [id])
+  teacher  User   @relation(fields: [teacherId], references: [id])
+  records  AttendanceRecord[]
+
+  @@unique([courseId, slotId, date])
+  @@index([courseId, date])
+}
+
+model AttendanceRecord {
+  id         Int      @id @default(autoincrement())
+  sessionId  Int
+  studentId  Int
+  status     String   // "NOT_MARKED" | "PRESENT" | "ABSENT"
+  method     String?  // "FACE" | "MANUAL" | null
+  confidence Float?   // Euclidean distance (lower = better match)
+  markedAt   TimestamptzString?
+  updatedAt  temporal.updatedAtString()
+
+  session AttendanceSession @relation(fields: [sessionId], references: [id])
+  student Student           @relation(fields: [studentId], references: [id])
+
+  @@unique([sessionId, studentId])  // Prevents duplicates at DB level
+  @@index([sessionId])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  action    String   // e.g., "ATTENDANCE_MARKED", "FACE_ENROLLED"
+  entityType String? // e.g., "Student", "AttendanceSession"
+  entityId  Int?
+  details   String?  // JSON metadata (NO passwords, NO embeddings)
+  ip        String?
+  createdAt TimestamptzString @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
