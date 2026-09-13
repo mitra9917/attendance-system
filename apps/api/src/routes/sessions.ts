@@ -1,22 +1,36 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../prisma/db.js';
 import { requireAuth, AuthPayload } from '../middleware/auth.js';
+import { getBlocksForPattern } from '@attendance/shared';
 
 const router = Router();
 
 // POST /api/sessions  — Teacher starts a new attendance session
 router.post('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
-  const { courseId, slotId, date } = req.body;
+  const { courseId, slotCode, date } = req.body;
   const teacher = (req as any).user as AuthPayload;
 
-  if (!courseId || !slotId || !date) {
-    res.status(400).json({ error: 'courseId, slotId and date are required' });
+  if (!courseId || !slotCode || !date) {
+    res.status(400).json({ error: 'courseId, slotCode and date are required' });
     return;
   }
 
   try {
-    // Prevent duplicate session for same course+slot+date
-    const dup = await db.orm.public.AttendanceSession.where({ courseId, slotId, date }).first();
+    const course = await db.orm.public.Course.where({ id: courseId }).first();
+    if (!course) {
+      res.status(404).json({ error: 'Course not found' });
+      return;
+    }
+
+    // Optional: Validate that slotCode belongs to the course's slotPattern
+    const blocks = getBlocksForPattern(course.slotPattern);
+    if (!blocks.some(b => b.code === slotCode)) {
+      res.status(400).json({ error: `Slot code ${slotCode} is not valid for pattern ${course.slotPattern}` });
+      return;
+    }
+
+    // Prevent duplicate session for same course+slotCode+date
+    const dup = await db.orm.public.AttendanceSession.where({ courseId, slotCode, date }).first();
     if (dup) {
       // Return existing session instead of erroring — client can load it
       res.status(200).json({ session: dup, existing: true });
@@ -25,7 +39,7 @@ router.post('/', requireAuth, async (req: Request, res: Response): Promise<void>
 
     const session = await db.orm.public.AttendanceSession.create({
       courseId,
-      slotId,
+      slotCode,
       teacherId: teacher.userId,
       date,
       status: 'ONGOING',
@@ -48,16 +62,16 @@ router.post('/', requireAuth, async (req: Request, res: Response): Promise<void>
   }
 });
 
-// GET /api/sessions  — list sessions, optional ?courseId= or ?courseId=&slotId=&date= (find specific)
+// GET /api/sessions  — list sessions, optional ?courseId= or ?courseId=&slotCode=&date= (find specific)
 router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> => {
   const courseId = req.query.courseId ? parseInt(req.query.courseId as string) : undefined;
-  const slotId = req.query.slotId ? parseInt(req.query.slotId as string) : undefined;
+  const slotCode = req.query.slotCode as string | undefined;
   const date = req.query.date as string | undefined;
 
   try {
     // If all 3 provided, find a specific session
-    if (courseId && slotId && date) {
-      const session = await db.orm.public.AttendanceSession.where({ courseId, slotId, date }).first();
+    if (courseId && slotCode && date) {
+      const session = await db.orm.public.AttendanceSession.where({ courseId, slotCode, date }).first();
       res.json(session ? [session] : []);
       return;
     }
@@ -79,11 +93,8 @@ router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<voi
     const session = await db.orm.public.AttendanceSession.where({ id }).first();
     if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
 
-    const [rawRecords, course, slot] = await Promise.all([
-      db.orm.public.AttendanceRecord.where({ sessionId: id }).all(),
-      db.orm.public.Course.first({ id: session.courseId }),
-      db.orm.public.Slot.first({ id: session.slotId }),
-    ]);
+    const rawRecords = await db.orm.public.AttendanceRecord.where({ sessionId: id }).all();
+    const course = await db.orm.public.Course.first({ id: session.courseId });
 
     // Enrich records with student info + serialNumber from enrollment
     const records = await Promise.all(
@@ -112,7 +123,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<voi
     // Sort by serialNumber
     records.sort((a, b) => (a.serialNumber ?? 999) - (b.serialNumber ?? 999));
 
-    res.json({ session, course, slot, records });
+    res.json({ session, course, records });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch session' });

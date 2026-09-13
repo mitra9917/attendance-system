@@ -1,10 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchApi } from '../lib/api';
-import { CalendarDays, ChevronRight, CheckCircle2, XCircle, Minus, Lock } from 'lucide-react';
+import { CalendarDays, ChevronRight, CheckCircle2, XCircle, Lock, Clock } from 'lucide-react';
+import { getBlocksForPattern } from '@attendance/shared';
+import type { DayOfWeek } from '@attendance/shared';
 import './Attendance.css';
 
-interface Course { id: number; code: string; name: string; slotId: number; slot?: { id: number; name: string; startTime: string; endTime: string; } | null; }
-interface Slot { id: number; name: string; startTime: string; endTime: string; }
+interface Course {
+  id: number;
+  code: string;
+  name: string;
+  type: string;
+  slotPattern: string;
+}
 
 interface AttendanceRecord {
   id: number;
@@ -20,19 +27,27 @@ interface AttendanceRecord {
 interface Session {
   id: number;
   courseId: number;
-  slotId: number;
+  slotCode: string;
   date: string;
   status: 'ONGOING' | 'FINALIZED';
 }
 
 type Step = 'setup' | 'session';
 
+const JS_DAY_TO_TIMETABLE: Record<number, DayOfWeek | null> = {
+  0: null,       // SUN — no classes
+  1: 'MON',
+  2: 'TUE',
+  3: 'WED',
+  4: 'THU',
+  5: 'FRI',
+  6: null,       // SAT — no classes
+};
+
 export function Attendance() {
   // ── Step 1: Setup ──
   const [courses, setCourses] = useState<Course[]>([]);
-  const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
-  const [selectedSlotId, setSelectedSlotId] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isStarting, setIsStarting] = useState(false);
   const [setupError, setSetupError] = useState('');
@@ -42,59 +57,60 @@ export function Attendance() {
   const [session, setSession] = useState<Session | null>(null);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [course, setCourse] = useState<Course | null>(null);
-  const [slot, setSlot] = useState<Slot | null>(null);
   const [markingId, setMarkingId] = useState<number | null>(null);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [finalizeMsg, setFinalizeMsg] = useState('');
 
   useEffect(() => {
-    Promise.all([fetchApi('/courses'), fetchApi('/slots')])
-      .then(([c, s]) => {
+    fetchApi('/courses')
+      .then(c => {
         setCourses(c);
-        setSlots(s);
-        if (c.length > 0) {
-          setSelectedCourseId(String(c[0].id));
-          // Auto-select the slot linked to the first course
-          setSelectedSlotId(String(c[0].slotId));
-        } else if (s.length > 0) {
-          setSelectedSlotId(String(s[0].id));
-        }
+        if (c.length > 0) setSelectedCourseId(String(c[0].id));
       })
       .catch(console.error);
   }, []);
 
-  // When course changes, auto-select its linked slot
-  const handleCourseChange = (id: string) => {
-    setSelectedCourseId(id);
-    const course = courses.find(c => String(c.id) === id);
-    if (course) setSelectedSlotId(String(course.slotId));
-  };
+  // Compute the day of the selected date
+  const activeCourse = courses.find(c => String(c.id) === selectedCourseId);
+  const dayOfWeek: DayOfWeek | null = selectedDate
+    ? (JS_DAY_TO_TIMETABLE[new Date(selectedDate + 'T00:00:00').getDay()] ?? null)
+    : null;
+
+  // Find all blocks scheduled for this course on the selected day
+  const activeBlocks = activeCourse && dayOfWeek
+    ? getBlocksForPattern(activeCourse.slotPattern).filter(b => b.day === dayOfWeek)
+    : [];
 
   const loadSession = async (sessionId: number) => {
     const data = await fetchApi(`/sessions/${sessionId}`);
     setSession(data.session);
     setRecords(data.records);
     setCourse(data.course);
-    setSlot(data.slot);
   };
 
   const handleStartSession = async () => {
-    if (!selectedCourseId || !selectedSlotId || !selectedDate) {
+    if (!selectedCourseId || !selectedDate) {
       setSetupError('Please fill in all fields.');
       return;
     }
+    if (activeBlocks.length === 0) {
+      setSetupError('This course has no classes scheduled on the selected date.');
+      return;
+    }
+
     setIsStarting(true);
     setSetupError('');
     try {
+      // Use the first block's code as the session's slotCode
+      const slotCode = activeBlocks[0].code;
       const data = await fetchApi('/sessions', {
         method: 'POST',
         body: JSON.stringify({
           courseId: parseInt(selectedCourseId),
-          slotId: parseInt(selectedSlotId),
+          slotCode,
           date: selectedDate,
         }),
       });
-      // Backend returns { session, existing } for both new (201) and found (200) sessions
       await loadSession(data.session.id);
       setStep('session');
     } catch (err: any) {
@@ -148,7 +164,7 @@ export function Attendance() {
         <div className="page-header">
           <div>
             <h1>Daily Attendance</h1>
-            <p>Select date, course, and slot to begin a session</p>
+            <p>Select a date and course to begin an attendance session</p>
           </div>
         </div>
 
@@ -163,10 +179,6 @@ export function Attendance() {
           {courses.length === 0 ? (
             <div className="empty-hint">
               No courses found. <a href="/register">Create a course first →</a>
-            </div>
-          ) : slots.length === 0 ? (
-            <div className="empty-hint">
-              No slots found. <a href="/slots">Create a time slot first →</a>
             </div>
           ) : (
             <div className="setup-form">
@@ -185,35 +197,44 @@ export function Attendance() {
                 <select
                   id="att-course"
                   value={selectedCourseId}
-                  onChange={e => handleCourseChange(e.target.value)}
+                  onChange={e => setSelectedCourseId(e.target.value)}
                 >
                   {courses.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.code} — {c.name}{c.slot ? ` (${c.slot.name})` : ''}
+                      {c.code} — {c.name} ({c.slotPattern})
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div className="form-group">
-                <label htmlFor="att-slot">Time Slot</label>
-                <select
-                  id="att-slot"
-                  value={selectedSlotId}
-                  onChange={e => setSelectedSlotId(e.target.value)}
-                >
-                  {slots.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.startTime} – {s.endTime})</option>
-                  ))}
-                </select>
-              </div>
+              {/* Show schedule info for selected date */}
+              {activeCourse && dayOfWeek && (
+                <div className="form-group">
+                  <label>Classes on {dayOfWeek} ({selectedDate})</label>
+                  {activeBlocks.length > 0 ? (
+                    <div className="scheduled-blocks">
+                      {activeBlocks.map((b, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(99,102,241,0.08)', padding: '0.6rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(99,102,241,0.2)', fontSize: '0.9rem', color: 'var(--primary)' }}>
+                          <Clock size={15} />
+                          <strong>{b.code}</strong>
+                          <span style={{ color: 'var(--text-secondary)' }}>{b.startTime} – {b.endTime}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ background: 'var(--bg-card)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                      No classes scheduled on {dayOfWeek} for this course.
+                    </div>
+                  )}
+                </div>
+              )}
 
               <button
                 className="btn btn-primary start-btn"
                 onClick={handleStartSession}
-                disabled={isStarting}
+                disabled={isStarting || activeBlocks.length === 0}
               >
-                {isStarting ? 'Starting...' : <>Start Session <ChevronRight size={18} /></>}
+                {isStarting ? 'Starting...' : <> Start Session <ChevronRight size={18} /></>}
               </button>
             </div>
           )}
@@ -223,6 +244,8 @@ export function Attendance() {
   }
 
   // ── Step 2: Session Screen ──
+  const sessionBlock = course && session ? getBlocksForPattern(course.slotPattern).find(b => b.code === session.slotCode) : null;
+
   return (
     <div className="attendance-session">
       {/* Header */}
@@ -230,7 +253,9 @@ export function Attendance() {
         <div>
           <h1>{course?.code} — {course?.name}</h1>
           <p>
-            {slot?.name} · {slot?.startTime}–{slot?.endTime} · {session?.date}
+            {session?.slotCode}
+            {sessionBlock ? ` · ${sessionBlock.startTime}–${sessionBlock.endTime}` : ''}
+            {` · ${session?.date}`}
             {isFinalized && <span className="badge badge-success" style={{ marginLeft: '0.5rem' }}>Finalized</span>}
           </p>
         </div>
@@ -250,7 +275,6 @@ export function Attendance() {
       <div className="session-body">
         {/* ── Left: Student Attendance Grid ── */}
         <div className="attendance-panel">
-          {/* Summary row */}
           <div className="att-summary">
             <div className="att-stat present"><span>{presentCount}</span> Present</div>
             <div className="att-stat absent"><span>{absentCount}</span> Absent</div>

@@ -4,15 +4,11 @@ import { requireAdmin, requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
-// GET /api/courses  — enriched with slot info
+// GET /api/courses
 router.get('/', requireAuth, async (_req: Request, res: Response): Promise<void> => {
   try {
     const courses = await db.orm.public.Course.where({ isActive: true }).all();
-    const enriched = await Promise.all(courses.map(async c => {
-      const slot = await db.orm.public.Slot.where({ id: c.slotId }).first();
-      return { ...c, slot: slot ?? null };
-    }));
-    res.json(enriched);
+    res.json(courses);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch courses' });
@@ -25,8 +21,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<voi
   try {
     const course = await db.orm.public.Course.where({ id, isActive: true }).first();
     if (!course) { res.status(404).json({ error: 'Course not found' }); return; }
-    const slot = await db.orm.public.Slot.where({ id: course.slotId }).first();
-    res.json({ ...course, slot: slot ?? null });
+    res.json(course);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch course' });
@@ -35,16 +30,16 @@ router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<voi
 
 // POST /api/courses  (Admin)
 router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void> => {
-  const { code, name, slotId } = req.body;
-  if (!code || !name || slotId === undefined) {
-    res.status(400).json({ error: 'code, name and slotId are required' });
+  const { code, name, type, slotPattern } = req.body;
+  if (!code || !name || !type || !slotPattern) {
+    res.status(400).json({ error: 'code, name, type and slotPattern are required' });
     return;
   }
   try {
-    const existing = await db.orm.public.Course.where({ code, slotId }).first();
-    if (existing) { res.status(409).json({ error: 'Course with this code+slotId already exists' }); return; }
+    const existing = await db.orm.public.Course.where({ code, slotPattern }).first();
+    if (existing) { res.status(409).json({ error: 'Course with this code and slot pattern already exists' }); return; }
 
-    const course = await db.orm.public.Course.create({ code, name, slotId, isActive: true });
+    const course = await db.orm.public.Course.create({ code, name, type, slotPattern, isActive: true });
     res.status(201).json(course);
   } catch (err) {
     console.error(err);
@@ -55,7 +50,7 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
 // PUT /api/courses/:id  (Admin)
 router.put('/:id', requireAdmin, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
-  const { name, code, slotId } = req.body;
+  const { name, code, type, slotPattern } = req.body;
   try {
     const existing = await db.orm.public.Course.where({ id, isActive: true }).first();
     if (!existing) { res.status(404).json({ error: 'Course not found' }); return; }
@@ -63,7 +58,8 @@ router.put('/:id', requireAdmin, async (req: Request, res: Response): Promise<vo
     const updates: Record<string, unknown> = {};
     if (name) updates.name = name;
     if (code) updates.code = code;
-    if (slotId !== undefined) updates.slotId = slotId;
+    if (type) updates.type = type;
+    if (slotPattern) updates.slotPattern = slotPattern;
 
     await db.orm.public.Course.where({ id }).update(updates);
     res.json({ message: 'Course updated' });

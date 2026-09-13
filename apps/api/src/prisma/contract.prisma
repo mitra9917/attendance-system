@@ -30,33 +30,22 @@ model Student {
 }
 
 model Course {
-  id        Int      @id @default(autoincrement())
-  code      String
-  name      String
-  slotId    Int
-  isActive  Boolean  @default(true)
-  createdAt TimestamptzString @default(now())
-  updatedAt temporal.updatedAtString()
+  id          Int      @id @default(autoincrement())
+  code        String
+  name        String
+  type        String   // "THEORY" | "LAB"
+  slotPattern String
+  isActive    Boolean  @default(true)
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
 
-  @@unique([code, slotId])
+  @@unique([code, slotPattern])
 
-  slot        Slot        @relation(fields: [slotId], references: [id])
   enrollments Enrollment[]
   sessions    AttendanceSession[]
 }
 
-model Slot {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  startTime String   // "09:00"
-  endTime   String   // "10:00"
-  isActive  Boolean  @default(true)
-  createdAt TimestamptzString @default(now())
-  updatedAt temporal.updatedAtString()
 
-  courses   Course[]
-  sessions  AttendanceSession[]
-}
 
 model Enrollment {
   id           Int      @id @default(autoincrement())
@@ -90,7 +79,7 @@ model FaceTemplate {
 model AttendanceSession {
   id        Int      @id @default(autoincrement())
   courseId  Int
-  slotId    Int
+  slotCode  String   // e.g., "A1", "L1"
   teacherId Int
   date      String   // "YYYY-MM-DD"
   status    String   @default("ONGOING")  // "ONGOING" | "FINALIZED"
@@ -98,11 +87,10 @@ model AttendanceSession {
   finalizedAt TimestamptzString?
 
   course   Course @relation(fields: [courseId], references: [id])
-  slot     Slot   @relation(fields: [slotId], references: [id])
   teacher  User   @relation(fields: [teacherId], references: [id])
   records  AttendanceRecord[]
 
-  @@unique([courseId, slotId, date])
+  @@unique([courseId, slotCode, date])
   @@index([courseId, date])
 }
 

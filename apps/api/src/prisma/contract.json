@@ -28,10 +28,6 @@
       "model": "FaceTemplate",
       "namespace": "public"
     },
-    "slot": {
-      "model": "Slot",
-      "namespace": "public"
-    },
     "student": {
       "model": "Student",
       "namespace": "public"
@@ -199,10 +195,10 @@
                   "kind": "scalar"
                 }
               },
-              "slotId": {
+              "slotCode": {
                 "nullable": false,
                 "type": {
-                  "codecId": "pg/int4@1",
+                  "codecId": "pg/text@1",
                   "kind": "scalar"
                 }
               },
@@ -260,22 +256,6 @@
                   "namespace": "public"
                 }
               },
-              "slot": {
-                "cardinality": "N:1",
-                "nullable": false,
-                "on": {
-                  "localFields": [
-                    "slotId"
-                  ],
-                  "targetFields": [
-                    "id"
-                  ]
-                },
-                "to": {
-                  "model": "Slot",
-                  "namespace": "public"
-                }
-              },
               "teacher": {
                 "cardinality": "N:1",
                 "nullable": false,
@@ -307,8 +287,8 @@
                 "id": {
                   "column": "id"
                 },
-                "slotId": {
-                  "column": "slotId"
+                "slotCode": {
+                  "column": "slotCode"
                 },
                 "startedAt": {
                   "column": "startedAt"
@@ -469,10 +449,17 @@
                   "kind": "scalar"
                 }
               },
-              "slotId": {
+              "slotPattern": {
                 "nullable": false,
                 "type": {
-                  "codecId": "pg/int4@1",
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "type": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
                   "kind": "scalar"
                 }
               },
@@ -514,22 +501,6 @@
                   "model": "AttendanceSession",
                   "namespace": "public"
                 }
-              },
-              "slot": {
-                "cardinality": "N:1",
-                "nullable": false,
-                "on": {
-                  "localFields": [
-                    "slotId"
-                  ],
-                  "targetFields": [
-                    "id"
-                  ]
-                },
-                "to": {
-                  "model": "Slot",
-                  "namespace": "public"
-                }
               }
             },
             "storage": {
@@ -549,8 +520,11 @@
                 "name": {
                   "column": "name"
                 },
-                "slotId": {
-                  "column": "slotId"
+                "slotPattern": {
+                  "column": "slotPattern"
+                },
+                "type": {
+                  "column": "type"
                 },
                 "updatedAt": {
                   "column": "updatedAt"
@@ -750,118 +724,6 @@
               },
               "namespaceId": "public",
               "table": "faceTemplate"
-            }
-          },
-          "Slot": {
-            "fields": {
-              "createdAt": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/timestamptz-string@1",
-                  "kind": "scalar"
-                }
-              },
-              "endTime": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                }
-              },
-              "id": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/int4@1",
-                  "kind": "scalar"
-                }
-              },
-              "isActive": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/bool@1",
-                  "kind": "scalar"
-                }
-              },
-              "name": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                }
-              },
-              "startTime": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/text@1",
-                  "kind": "scalar"
-                }
-              },
-              "updatedAt": {
-                "nullable": false,
-                "type": {
-                  "codecId": "pg/timestamptz-string@1",
-                  "kind": "scalar"
-                }
-              }
-            },
-            "relations": {
-              "courses": {
-                "cardinality": "1:N",
-                "on": {
-                  "localFields": [
-                    "id"
-                  ],
-                  "targetFields": [
-                    "slotId"
-                  ]
-                },
-                "to": {
-                  "model": "Course",
-                  "namespace": "public"
-                }
-              },
-              "sessions": {
-                "cardinality": "1:N",
-                "on": {
-                  "localFields": [
-                    "id"
-                  ],
-                  "targetFields": [
-                    "slotId"
-                  ]
-                },
-                "to": {
-                  "model": "AttendanceSession",
-                  "namespace": "public"
-                }
-              }
-            },
-            "storage": {
-              "fields": {
-                "createdAt": {
-                  "column": "createdAt"
-                },
-                "endTime": {
-                  "column": "endTime"
-                },
-                "id": {
-                  "column": "id"
-                },
-                "isActive": {
-                  "column": "isActive"
-                },
-                "name": {
-                  "column": "name"
-                },
-                "startTime": {
-                  "column": "startTime"
-                },
-                "updatedAt": {
-                  "column": "updatedAt"
-                }
-              },
-              "namespaceId": "public",
-              "table": "slot"
             }
           },
           "Student": {
@@ -1271,9 +1133,9 @@
                   "nativeType": "int4",
                   "nullable": false
                 },
-                "slotId": {
-                  "codecId": "pg/int4@1",
-                  "nativeType": "int4",
+                "slotCode": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
                   "nullable": false
                 },
                 "startedAt": {
@@ -1320,22 +1182,6 @@
                 {
                   "source": {
                     "columns": [
-                      "slotId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "attendanceSession"
-                  },
-                  "target": {
-                    "columns": [
-                      "id"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "slot"
-                  }
-                },
-                {
-                  "source": {
-                    "columns": [
                       "teacherId"
                     ],
                     "namespaceId": "public",
@@ -1370,14 +1216,6 @@
                 },
                 {
                   "columns": [
-                    "slotId"
-                  ],
-                  "name": "attendanceSession_slotId_idx_4d7c6bc9",
-                  "prefix": "attendanceSession_slotId_idx",
-                  "unique": false
-                },
-                {
-                  "columns": [
                     "teacherId"
                   ],
                   "name": "attendanceSession_teacherId_idx_bc266660",
@@ -1394,7 +1232,7 @@
                 {
                   "columns": [
                     "courseId",
-                    "slotId",
+                    "slotCode",
                     "date"
                   ]
                 }
@@ -1541,9 +1379,14 @@
                   "nativeType": "text",
                   "nullable": false
                 },
-                "slotId": {
-                  "codecId": "pg/int4@1",
-                  "nativeType": "int4",
+                "slotPattern": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "type": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
                   "nullable": false
                 },
                 "updatedAt": {
@@ -1552,34 +1395,8 @@
                   "nullable": false
                 }
               },
-              "foreignKeys": [
-                {
-                  "source": {
-                    "columns": [
-                      "slotId"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "course"
-                  },
-                  "target": {
-                    "columns": [
-                      "id"
-                    ],
-                    "namespaceId": "public",
-                    "tableName": "slot"
-                  }
-                }
-              ],
-              "indexes": [
-                {
-                  "columns": [
-                    "slotId"
-                  ],
-                  "name": "course_slotId_idx_4d7c6bc9",
-                  "prefix": "course_slotId_idx",
-                  "unique": false
-                }
-              ],
+              "foreignKeys": [],
+              "indexes": [],
               "primaryKey": {
                 "columns": [
                   "id"
@@ -1589,7 +1406,7 @@
                 {
                   "columns": [
                     "code",
-                    "slotId"
+                    "slotPattern"
                   ]
                 }
               ]
@@ -1787,71 +1604,6 @@
               },
               "uniques": []
             },
-            "slot": {
-              "columns": {
-                "createdAt": {
-                  "codecId": "pg/timestamptz-string@1",
-                  "default": {
-                    "expression": "now()",
-                    "kind": "function"
-                  },
-                  "nativeType": "timestamptz",
-                  "nullable": false
-                },
-                "endTime": {
-                  "codecId": "pg/text@1",
-                  "nativeType": "text",
-                  "nullable": false
-                },
-                "id": {
-                  "codecId": "pg/int4@1",
-                  "default": {
-                    "expression": "autoincrement()",
-                    "kind": "function"
-                  },
-                  "nativeType": "int4",
-                  "nullable": false
-                },
-                "isActive": {
-                  "codecId": "pg/bool@1",
-                  "default": {
-                    "kind": "literal",
-                    "value": true
-                  },
-                  "nativeType": "bool",
-                  "nullable": false
-                },
-                "name": {
-                  "codecId": "pg/text@1",
-                  "nativeType": "text",
-                  "nullable": false
-                },
-                "startTime": {
-                  "codecId": "pg/text@1",
-                  "nativeType": "text",
-                  "nullable": false
-                },
-                "updatedAt": {
-                  "codecId": "pg/timestamptz-string@1",
-                  "nativeType": "timestamptz",
-                  "nullable": false
-                }
-              },
-              "foreignKeys": [],
-              "indexes": [],
-              "primaryKey": {
-                "columns": [
-                  "id"
-                ]
-              },
-              "uniques": [
-                {
-                  "columns": [
-                    "name"
-                  ]
-                }
-              ]
-            },
             "student": {
               "columns": {
                 "createdAt": {
@@ -1998,10 +1750,10 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "aa89397ea901e0fb683d1004884ce9f066b66d2870ed0ad013f098d7d9957d34"
+    "storageHash": "846aa5557b6a341b5b83f597ea7110700bcec515f11827f060c2b89ffd538a60"
   },
   "execution": {
-    "executionHash": "aebd8243d5bb9f815473e0d6d9d4715ecc8702b95afd47a77c57b0e63745da78",
+    "executionHash": "8df7c7bb4c2697bc9709fbf25437fb12d037506a018c23c27075dec6ad839500",
     "mutations": {
       "defaults": [
         {
@@ -2032,21 +1784,6 @@
             "column": "updatedAt",
             "namespace": "public",
             "table": "course"
-          }
-        },
-        {
-          "onCreate": {
-            "id": "timestampNow",
-            "kind": "generator"
-          },
-          "onUpdate": {
-            "id": "timestampNow",
-            "kind": "generator"
-          },
-          "ref": {
-            "column": "updatedAt",
-            "namespace": "public",
-            "table": "slot"
           }
         },
         {

@@ -6,7 +6,7 @@ import authRoutes from './routes/auth.js';
 import userRoutes from './routes/users.js';
 import studentRoutes from './routes/students.js';
 import courseRoutes from './routes/courses.js';
-import slotRoutes from './routes/slots.js';
+
 import enrollmentRoutes from './routes/enrollments.js';
 import sessionRoutes from './routes/sessions.js';
 import statsRoutes from './routes/stats.js';
@@ -26,7 +26,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/courses', courseRoutes);
-app.use('/api/slots', slotRoutes);
+
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/stats', statsRoutes);

@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { fetchApi } from '../lib/api';
-import { BookOpen, UserPlus, GraduationCap, List, Trash2 } from 'lucide-react';
+import { BookOpen, UserPlus, GraduationCap, List, Trash2, FlaskConical, BookMarked, Calendar } from 'lucide-react';
+import { getBlocksForPattern, THEORY_PATTERNS, LAB_PATTERNS } from '@attendance/shared';
+import type { TimeBlock } from '@attendance/shared';
 import './Register.css';
 
-interface Course { id: number; code: string; name: string; slotId: number; slot?: { name: string; startTime: string; endTime: string; } | null }
-interface Slot { id: number; name: string; startTime: string; endTime: string; }
+interface Course {
+  id: number;
+  code: string;
+  name: string;
+  type: string;
+  slotPattern: string;
+}
 interface Student { id: number; registrationNumber: string; name: string; email: string | null; isActive: boolean; }
 
 type Tab = 'course' | 'student' | 'manage-courses' | 'manage-students';
@@ -52,24 +59,25 @@ export function Register() {
 function RegisterCourse() {
   const [code, setCode] = useState('');
   const [name, setName] = useState('');
-  const [slotId, setSlotId] = useState('');
-  const [slots, setSlots] = useState<Slot[]>([]);
+  const [courseType, setCourseType] = useState<'THEORY' | 'LAB'>('THEORY');
+  const [slotPattern, setSlotPattern] = useState(THEORY_PATTERNS[0] || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    fetchApi('/slots')
-      .then(data => {
-        setSlots(data);
-        if (data.length > 0) setSlotId(String(data[0].id));
-      })
-      .catch(console.error);
-  }, []);
+  const patterns = courseType === 'THEORY' ? THEORY_PATTERNS : LAB_PATTERNS;
+  const blocks: TimeBlock[] = slotPattern ? getBlocksForPattern(slotPattern) : [];
+
+  // Reset pattern when course type changes
+  const handleTypeChange = (type: 'THEORY' | 'LAB') => {
+    setCourseType(type);
+    const newPatterns = type === 'THEORY' ? THEORY_PATTERNS : LAB_PATTERNS;
+    setSlotPattern(newPatterns[0] || '');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!slotId) {
-      setMessage({ type: 'error', text: 'Please select a slot.' });
+    if (!slotPattern) {
+      setMessage({ type: 'error', text: 'Please select a slot pattern.' });
       return;
     }
     setIsSubmitting(true);
@@ -77,13 +85,17 @@ function RegisterCourse() {
     try {
       const course = await fetchApi('/courses', {
         method: 'POST',
-        body: JSON.stringify({ code: code.trim().toUpperCase(), name: name.trim(), slotId: parseInt(slotId) }),
+        body: JSON.stringify({
+          code: code.trim().toUpperCase(),
+          name: name.trim(),
+          type: courseType,
+          slotPattern,
+        }),
       });
-      const slotName = slots.find(s => String(s.id) === slotId)?.name ?? '';
-      setMessage({ type: 'success', text: `Course "${course.code} — ${course.name}" (${slotName}) created successfully!` });
+      setMessage({ type: 'success', text: `Course "${course.code} — ${course.name}" (${slotPattern}) created successfully!` });
       setCode('');
       setName('');
-      if (slots.length > 0) setSlotId(String(slots[0].id));
+      setSlotPattern(patterns[0] || '');
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Failed to create course' });
     } finally {
@@ -97,43 +109,74 @@ function RegisterCourse() {
         <div className="panel-icon"><BookOpen size={22} /></div>
         <div>
           <h2>Create New Course</h2>
-          <p>Add a subject/course with its time slot to the system</p>
+          <p>Add a subject/course with its timetable slot</p>
         </div>
       </div>
 
       {message && <div className={message.type === 'success' ? 'success-alert' : 'error-alert'}>{message.text}</div>}
 
-      {slots.length === 0 && (
-        <div className="error-alert" style={{ marginBottom: '1rem' }}>
-          ⚠️ No slots available. Please contact admin to create time slots first.
-        </div>
-      )}
-
       <form onSubmit={handleSubmit} className="register-form">
+        {/* Course Type Toggle */}
+        <div className="form-group">
+          <label>Course Type *</label>
+          <div className="type-toggle">
+            <button
+              type="button"
+              className={`type-btn ${courseType === 'THEORY' ? 'active' : ''}`}
+              onClick={() => handleTypeChange('THEORY')}
+            >
+              <BookMarked size={16} /> Theory
+            </button>
+            <button
+              type="button"
+              className={`type-btn ${courseType === 'LAB' ? 'active' : ''}`}
+              onClick={() => handleTypeChange('LAB')}
+            >
+              <FlaskConical size={16} /> Lab
+            </button>
+          </div>
+        </div>
+
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="course-code">Course Code *</label>
             <input id="course-code" value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. CS101" required />
           </div>
           <div className="form-group">
-            <label htmlFor="course-slot">Slot *</label>
-            {slots.length === 0 ? (
-              <select id="course-slot" disabled><option>No slots available</option></select>
-            ) : (
-              <select id="course-slot" value={slotId} onChange={e => setSlotId(e.target.value)} required>
-                {slots.map(s => (
-                  <option key={s.id} value={s.id}>{s.name} ({s.startTime} – {s.endTime})</option>
-                ))}
-              </select>
-            )}
+            <label htmlFor="course-slot">Slot Pattern *</label>
+            <select id="course-slot" value={slotPattern} onChange={e => setSlotPattern(e.target.value)} required>
+              {patterns.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
           </div>
         </div>
+
         <div className="form-group">
           <label htmlFor="course-name">Course Name *</label>
           <input id="course-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Introduction to Computer Science" required />
         </div>
 
-        <button type="submit" className="btn btn-primary submit-btn" disabled={isSubmitting || slots.length === 0}>
+        {/* Schedule Preview */}
+        {slotPattern && blocks.length > 0 && (
+          <div className="schedule-preview glass-panel">
+            <div className="schedule-preview-header">
+              <Calendar size={16} />
+              <span>Schedule Preview — {blocks.length} class{blocks.length > 1 ? 'es' : ''} per week</span>
+            </div>
+            <div className="schedule-blocks">
+              {blocks.map((b, i) => (
+                <div key={i} className="schedule-block">
+                  <span className="block-day">{b.day}</span>
+                  <span className="block-code">{b.code}</span>
+                  <span className="block-time">{b.startTime} – {b.endTime}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button type="submit" className="btn btn-primary submit-btn" disabled={isSubmitting}>
           {isSubmitting ? 'Creating...' : 'Create Course'}
         </button>
       </form>
@@ -267,7 +310,7 @@ function RegisterStudent() {
                 <select id="enroll-course" value={selectedCourseId} onChange={e => setSelectedCourseId(e.target.value)}>
                   {courses.map(c => (
                     <option key={c.id} value={c.id}>
-                      {c.code} — {c.name}{c.slot ? ` (${c.slot.name})` : ''}
+                      {c.code} — {c.name} ({c.type === 'LAB' ? '🧪 ' : ''}{c.slotPattern})
                     </option>
                   ))}
                 </select>
@@ -344,31 +387,40 @@ function ManageCourses() {
               <tr>
                 <th>Code</th>
                 <th>Name</th>
-                <th>Slot</th>
+                <th>Type</th>
+                <th>Slot Pattern</th>
+                <th>Classes/Week</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {courses.map(course => (
-                <tr key={course.id}>
-                  <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>{course.code}</td>
-                  <td>{course.name}</td>
-                  <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                    {course.slot ? `${course.slot.name} (${course.slot.startTime}–${course.slot.endTime})` : `Slot #${course.slotId}`}
-                  </td>
-                  <td style={{ textAlign: 'right' }}>
-                    <button
-                      className="icon-btn"
-                      onClick={() => handleDelete(course.id, course.code)}
-                      disabled={deletingId === course.id}
-                      style={{ color: 'var(--danger)' }}
-                      title="Delete course"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {courses.map(course => {
+                const blocks = getBlocksForPattern(course.slotPattern);
+                return (
+                  <tr key={course.id}>
+                    <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>{course.code}</td>
+                    <td>{course.name}</td>
+                    <td>
+                      <span className={`badge ${course.type === 'LAB' ? 'badge-info' : 'badge-neutral'}`}>
+                        {course.type === 'LAB' ? '🧪 Lab' : '📚 Theory'}
+                      </span>
+                    </td>
+                    <td style={{ fontFamily: 'monospace', color: 'var(--primary)', fontSize: '0.85rem' }}>{course.slotPattern}</td>
+                    <td style={{ color: 'var(--text-muted)', textAlign: 'center' }}>{blocks.length}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        className="icon-btn"
+                        onClick={() => handleDelete(course.id, course.code)}
+                        disabled={deletingId === course.id}
+                        style={{ color: 'var(--danger)' }}
+                        title="Delete course"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
