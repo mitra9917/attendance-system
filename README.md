@@ -1,53 +1,75 @@
-# Attendance System
+# Smart Attendance System
 
-## Installation Procedure
+A full-stack attendance management system built with React, Express, Prisma 8, and PostgreSQL.
 
-### 1. Prerequisites
-- Node.js (v18 or higher recommended)
-- PostgreSQL (Installed and running on your local machine)
-- Git
+## Prerequisites
 
-### 2. Setup the Repository
-Clone the repository and install the monorepo dependencies:
+- **Node.js** (v18 or higher recommended)
+- **PostgreSQL** (Installed and running on your local machine)
+- **Git**
+
+## Installation & Setup Guide
+
+### 1. Clone and Install Dependencies
+
+Clone the repository and install the monorepo dependencies from the root directory:
+
 ```bash
-git clone <your-repo-url>
-cd attendance_system
+git clone https://github.com/tanmayskotadia/attendance-system.git
+cd attendance-system
 npm install
 ```
 
-### 3. Database Configuration
-1. Ensure your local PostgreSQL server is running.
+### 2. Database Configuration
+
+1. Make sure your local PostgreSQL server is running.
 2. Create a database for the project (e.g., `attendance_db`).
-3. Navigate to the API app:
+3. Navigate to the API directory:
    ```bash
    cd apps/api
    ```
-4. Copy the environment variables template and configure it:
+4. Create an `.env` file based on your local setup:
    ```bash
-   cp .env.example .env
+   New-Item .env -ItemType File
    ```
-5. Open `.env` and set your `DATABASE_URL` to match your local PostgreSQL credentials:
+5. Open `.env` and configure your database URL and JWT secret:
    ```env
-   DATABASE_URL="postgresql://<user>:<password>@localhost:5432/attendance_db"
+   PORT=3000
+   DATABASE_URL="postgresql://<user>:<password>@localhost:5432/attendance_db?schema=public"
    JWT_SECRET="your-super-secret-jwt-key"
    ```
 
-### 4. Initialize Prisma ORM
-We use Prisma 8 (contract-based workflow). From the `apps/api` directory, run:
+### 3. Initialize Prisma ORM
 
-1. Validate the schema and generate the client artifacts:
+The backend uses Prisma 8. From the `apps/api` directory, initialize the database:
+
+1. Generate the Prisma client artifacts:
    ```bash
    npm run contract:emit
    ```
-2. Push the schema to your database to create the tables:
+2. Apply the schema to your PostgreSQL database:
    ```bash
-   npx prisma db update --yes
+   npx prisma db update --confirm attendance_db
+   ```
+3. Return to the project root directory:
+   ```bash
+   cd ../..
    ```
 
-### 5. Run the Development Server
-With the dependencies installed and database ready, start the API dev server (from `apps/api`):
+### 4. Run the Application
+
+Start both the frontend (Vite) and backend (Express) development servers simultaneously from the **root directory**:
+
 ```bash
 npm run dev
 ```
 
-The server will start at `http://localhost:3000`. You can verify it's running by visiting `http://localhost:3000/health`.
+- **Frontend UI:** [http://localhost:5173](http://localhost:5173)
+- **Backend API:** [http://localhost:3000](http://localhost:3000)
+
+### 5. Initial Usage
+
+1. Open the frontend URL in your browser.
+2. Use the application's interface to register a new user (the first user should be given an admin role, or you can register normally).
+3. Under the **Register** section, you can start managing **Time Slots**, **Courses**, and **Students**.
+4. Use the **Daily Attendance** page to track and mark student attendance for active sessions.
