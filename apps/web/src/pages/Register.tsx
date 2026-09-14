@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import * as faceapi from "face-api.js";
+import { useNavigate } from "react-router-dom";
 import { fetchApi } from "../lib/api";
+import { Modal } from "../components/Modal";
 import {
   BookOpen,
   UserPlus,
@@ -14,6 +16,7 @@ import {
   Camera,
   X,
   RefreshCw,
+  Edit2,
 } from "lucide-react";
 import {
   getBlocksForPattern,
@@ -29,13 +32,16 @@ interface Course {
   name: string;
   type: string;
   slotPattern: string;
+  studentCount?: number;
 }
 interface Student {
   id: number;
   registrationNumber: string;
   name: string;
   email: string | null;
+  photoUrl: string | null;
   isActive: boolean;
+  enrolledCourses?: { id: number; code: string; name: string; type: string }[];
 }
 
 type Tab = "course" | "student" | "manage-courses" | "manage-students";
@@ -895,7 +901,8 @@ function ManageCourses() {
                 <th>Name</th>
                 <th>Type</th>
                 <th>Slot Pattern</th>
-                <th>Classes/Week</th>
+                <th style={{ textAlign: "center" }}>Classes/Week</th>
+                <th style={{ textAlign: "center" }}>Students</th>
                 <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
@@ -932,6 +939,15 @@ function ManageCourses() {
                     >
                       {blocks.length}
                     </td>
+                    <td
+                      style={{
+                        color: "var(--text-muted)",
+                        textAlign: "center",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {course.studentCount ?? 0}
+                    </td>
                     <td style={{ textAlign: "right" }}>
                       <button
                         className="icon-btn"
@@ -962,6 +978,15 @@ function ManageStudents() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const navigate = useNavigate();
+
+  // Edit Modal State
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadStudents = useCallback(async () => {
     setIsLoading(true);
@@ -998,6 +1023,31 @@ function ManageStudents() {
     }
   };
 
+  const openEditModal = (student: Student) => {
+    setEditingStudent(student);
+    setEditName(student.name);
+    setEditEmail(student.email || "");
+    setIsModalOpen(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStudent) return;
+    setIsSubmitting(true);
+    try {
+      await fetchApi(`/students/${editingStudent.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ name: editName, email: editEmail }),
+      });
+      setIsModalOpen(false);
+      loadStudents();
+    } catch (err: any) {
+      alert(err.message || "Failed to update student");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="register-panel glass-panel">
       <div className="panel-header">
@@ -1006,7 +1056,7 @@ function ManageStudents() {
         </div>
         <div>
           <h2>Manage Students</h2>
-          <p>View and delete registered students</p>
+          <p>View, edit, and delete registered students</p>
         </div>
       </div>
 
@@ -1025,34 +1075,111 @@ function ManageStudents() {
           <table className="data-table">
             <thead>
               <tr>
+                <th style={{ width: "40px", textAlign: "center" }}>Photo</th>
                 <th>Reg. No.</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th style={{ textAlign: "right" }}>Actions</th>
+                <th>Name / Email</th>
+                <th>Enrolled Courses</th>
+                <th style={{ textAlign: "right", width: "120px" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {students.map((student) => (
                 <tr key={student.id}>
-                  <td style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                  <td style={{ textAlign: "center" }}>
+                    {student.photoUrl ? (
+                      <img
+                        src={student.photoUrl}
+                        alt="Profile"
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          borderRadius: "50%",
+                          objectFit: "cover",
+                          border: "2px solid var(--border-color)",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: "32px",
+                          height: "32px",
+                          borderRadius: "50%",
+                          backgroundColor: "var(--bg-secondary)",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          border: "2px solid var(--border-color)",
+                          color: "var(--text-muted)",
+                        }}
+                      >
+                        <UserPlus size={14} />
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ fontFamily: "monospace", fontSize: "0.85rem", fontWeight: 600 }}>
                     {student.registrationNumber}
                   </td>
-                  <td style={{ fontWeight: 500 }}>{student.name}</td>
-                  <td
-                    style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}
-                  >
-                    {student.email || "—"}
+                  <td>
+                    <div style={{ fontWeight: 500 }}>{student.name}</div>
+                    <div style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginTop: "2px" }}>
+                      {student.email || "—"}
+                    </div>
+                  </td>
+                  <td>
+                    {student.enrolledCourses && student.enrolledCourses.length > 0 ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        {student.enrolledCourses.map((c) => (
+                          <span
+                            key={c.id}
+                            style={{
+                              fontSize: "0.75rem",
+                              backgroundColor: "var(--bg-secondary)",
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              border: "1px solid var(--border-color)",
+                              display: "inline-block",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              maxWidth: "200px"
+                            }}
+                            title={`${c.code} — ${c.name}`}
+                          >
+                            <strong>{c.code}</strong> — {c.name}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>None</span>
+                    )}
                   </td>
                   <td style={{ textAlign: "right" }}>
-                    <button
-                      className="icon-btn"
-                      onClick={() => handleDelete(student.id, student.name)}
-                      disabled={deletingId === student.id}
-                      style={{ color: "var(--danger)" }}
-                      title="Delete student"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                      <button
+                        className="icon-btn"
+                        onClick={() => navigate(`/students/${student.id}/enroll`)}
+                        title="Enroll Face"
+                        style={{ color: "var(--primary)" }}
+                      >
+                        <Camera size={16} />
+                      </button>
+                      <button
+                        className="icon-btn"
+                        onClick={() => openEditModal(student)}
+                        title="Edit student"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        className="icon-btn"
+                        onClick={() => handleDelete(student.id, student.name)}
+                        disabled={deletingId === student.id}
+                        style={{ color: "var(--danger)" }}
+                        title="Delete student"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1060,6 +1187,60 @@ function ManageStudents() {
           </table>
         </div>
       )}
+
+      {/* Edit Student Modal */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Edit Student"
+      >
+        <form
+          onSubmit={handleEditSubmit}
+          style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
+        >
+          <div className="form-group">
+            <label>Registration Number</label>
+            <input
+              value={editingStudent?.registrationNumber || ""}
+              disabled
+              style={{ opacity: 0.7, cursor: "not-allowed" }}
+            />
+          </div>
+          <div className="form-group">
+            <label>Full Name</label>
+            <input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Email (Optional)</label>
+            <input
+              type="email"
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+            />
+          </div>
+
+          <div className="modal-form-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem", marginTop: "1rem" }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setIsModalOpen(false)}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

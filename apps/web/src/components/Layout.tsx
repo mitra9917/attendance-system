@@ -20,7 +20,6 @@ export function Layout() {
     { to: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
     { to: '/attendance', icon: <ClipboardList size={20} />, label: 'Daily Attendance' },
     { to: '/register', icon: <UserPlus size={20} />, label: 'Register' },
-    { to: '/students', icon: <GraduationCap size={20} />, label: 'Students' },
     { to: '/view', icon: <Eye size={20} />, label: 'View' },
   ];
 

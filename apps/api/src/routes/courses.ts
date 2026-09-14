@@ -8,7 +8,19 @@ const router = Router();
 router.get('/', requireAuth, async (_req: Request, res: Response): Promise<void> => {
   try {
     const courses = await db.orm.public.Course.where({ isActive: true }).all();
-    res.json(courses);
+    
+    // Enrich with student count from Enrollment
+    const enriched = await Promise.all(
+      courses.map(async (course) => {
+        const enrollments = await db.orm.public.Enrollment.where({ courseId: course.id }).all();
+        return {
+          ...course,
+          studentCount: enrollments.length,
+        };
+      })
+    );
+
+    res.json(enriched);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch courses' });

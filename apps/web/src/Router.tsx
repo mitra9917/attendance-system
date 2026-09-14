@@ -7,7 +7,6 @@ import { Dashboard } from './pages/Dashboard';
 import { Attendance } from './pages/Attendance';
 import { Register } from './pages/Register';
 import { View } from './pages/View';
-import { Students } from './pages/Students';
 import { FaceEnrollment } from './pages/FaceEnrollment';
 import CVPoc from './pages/CVPoc';
 
@@ -29,7 +28,6 @@ export function Router() {
           <Route path="/attendance" element={<Attendance />} />
           <Route path="/register" element={<Register />} />
           <Route path="/view" element={<View />} />
-          <Route path="/students" element={<Students />} />
           <Route path="/students/:id/enroll" element={<FaceEnrollment />} />
         </Route>
 
