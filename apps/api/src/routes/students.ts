@@ -130,6 +130,16 @@ router.post('/:id/faces', requireAdmin, async (req: Request, res: Response): Pro
       });
     }
 
+    const admin = (req as any).user as { userId: number };
+    await db.orm.public.AuditLog.create({
+      userId: admin.userId,
+      action: 'FACE_ENROLLED',
+      entityType: 'Student',
+      entityId: id,
+      details: JSON.stringify({ templatesCount: embeddings.length }),
+      ip: req.ip || '',
+    });
+
     res.status(201).json({ message: 'Face templates saved successfully' });
   } catch (err) {
     console.error(err);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { fetchApi } from '../lib/api';
 import { BookOpen, GraduationCap, CalendarCheck, UserCheck } from 'lucide-react';

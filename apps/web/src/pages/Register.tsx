@@ -1,10 +1,27 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import * as faceapi from 'face-api.js';
-import { fetchApi } from '../lib/api';
-import { BookOpen, UserPlus, GraduationCap, List, Trash2, FlaskConical, BookMarked, Calendar, Upload, Camera, X, RefreshCw } from 'lucide-react';
-import { getBlocksForPattern, THEORY_PATTERNS, LAB_PATTERNS } from '@attendance/shared';
-import type { TimeBlock } from '@attendance/shared';
-import './Register.css';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import * as faceapi from "face-api.js";
+import { fetchApi } from "../lib/api";
+import {
+  BookOpen,
+  UserPlus,
+  GraduationCap,
+  List,
+  Trash2,
+  FlaskConical,
+  BookMarked,
+  Calendar,
+  Upload,
+  Camera,
+  X,
+  RefreshCw,
+} from "lucide-react";
+import {
+  getBlocksForPattern,
+  THEORY_PATTERNS,
+  LAB_PATTERNS,
+} from "@attendance/shared";
+import type { TimeBlock } from "@attendance/shared";
+import "./Register.css";
 
 interface Course {
   id: number;
@@ -13,12 +30,18 @@ interface Course {
   type: string;
   slotPattern: string;
 }
-interface Student { id: number; registrationNumber: string; name: string; email: string | null; isActive: boolean; }
+interface Student {
+  id: number;
+  registrationNumber: string;
+  name: string;
+  email: string | null;
+  isActive: boolean;
+}
 
-type Tab = 'course' | 'student' | 'manage-courses' | 'manage-students';
+type Tab = "course" | "student" | "manage-courses" | "manage-students";
 
 export function Register() {
-  const [activeTab, setActiveTab] = useState<Tab>('course');
+  const [activeTab, setActiveTab] = useState<Tab>("course");
 
   return (
     <div className="register-page">
@@ -30,25 +53,37 @@ export function Register() {
       </div>
 
       <div className="register-tabs">
-        <button className={`tab-btn ${activeTab === 'course' ? 'active' : ''}`} onClick={() => setActiveTab('course')}>
+        <button
+          className={`tab-btn ${activeTab === "course" ? "active" : ""}`}
+          onClick={() => setActiveTab("course")}
+        >
           <BookOpen size={18} /> Register Course
         </button>
-        <button className={`tab-btn ${activeTab === 'student' ? 'active' : ''}`} onClick={() => setActiveTab('student')}>
+        <button
+          className={`tab-btn ${activeTab === "student" ? "active" : ""}`}
+          onClick={() => setActiveTab("student")}
+        >
           <UserPlus size={18} /> Register Student
         </button>
-        <button className={`tab-btn ${activeTab === 'manage-courses' ? 'active' : ''}`} onClick={() => setActiveTab('manage-courses')}>
+        <button
+          className={`tab-btn ${activeTab === "manage-courses" ? "active" : ""}`}
+          onClick={() => setActiveTab("manage-courses")}
+        >
           <List size={18} /> Manage Courses
         </button>
-        <button className={`tab-btn ${activeTab === 'manage-students' ? 'active' : ''}`} onClick={() => setActiveTab('manage-students')}>
+        <button
+          className={`tab-btn ${activeTab === "manage-students" ? "active" : ""}`}
+          onClick={() => setActiveTab("manage-students")}
+        >
           <GraduationCap size={18} /> Manage Students
         </button>
       </div>
 
       <div className="tab-content">
-        {activeTab === 'course' && <RegisterCourse />}
-        {activeTab === 'student' && <RegisterStudent />}
-        {activeTab === 'manage-courses' && <ManageCourses />}
-        {activeTab === 'manage-students' && <ManageStudents />}
+        {activeTab === "course" && <RegisterCourse />}
+        {activeTab === "student" && <RegisterStudent />}
+        {activeTab === "manage-courses" && <ManageCourses />}
+        {activeTab === "manage-students" && <ManageStudents />}
       </div>
     </div>
   );
@@ -58,34 +93,39 @@ export function Register() {
 // Register Course Tab
 // ─────────────────────────────────────────
 function RegisterCourse() {
-  const [code, setCode] = useState('');
-  const [name, setName] = useState('');
-  const [courseType, setCourseType] = useState<'THEORY' | 'LAB'>('THEORY');
-  const [slotPattern, setSlotPattern] = useState(THEORY_PATTERNS[0] || '');
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [courseType, setCourseType] = useState<"THEORY" | "LAB">("THEORY");
+  const [slotPattern, setSlotPattern] = useState(THEORY_PATTERNS[0] || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
-  const patterns = courseType === 'THEORY' ? THEORY_PATTERNS : LAB_PATTERNS;
-  const blocks: TimeBlock[] = slotPattern ? getBlocksForPattern(slotPattern) : [];
+  const patterns = courseType === "THEORY" ? THEORY_PATTERNS : LAB_PATTERNS;
+  const blocks: TimeBlock[] = slotPattern
+    ? getBlocksForPattern(slotPattern)
+    : [];
 
   // Reset pattern when course type changes
-  const handleTypeChange = (type: 'THEORY' | 'LAB') => {
+  const handleTypeChange = (type: "THEORY" | "LAB") => {
     setCourseType(type);
-    const newPatterns = type === 'THEORY' ? THEORY_PATTERNS : LAB_PATTERNS;
-    setSlotPattern(newPatterns[0] || '');
+    const newPatterns = type === "THEORY" ? THEORY_PATTERNS : LAB_PATTERNS;
+    setSlotPattern(newPatterns[0] || "");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!slotPattern) {
-      setMessage({ type: 'error', text: 'Please select a slot pattern.' });
+      setMessage({ type: "error", text: "Please select a slot pattern." });
       return;
     }
     setIsSubmitting(true);
     setMessage(null);
     try {
-      const course = await fetchApi('/courses', {
-        method: 'POST',
+      const course = await fetchApi("/courses", {
+        method: "POST",
         body: JSON.stringify({
           code: code.trim().toUpperCase(),
           name: name.trim(),
@@ -93,12 +133,18 @@ function RegisterCourse() {
           slotPattern,
         }),
       });
-      setMessage({ type: 'success', text: `Course "${course.code} — ${course.name}" (${slotPattern}) created successfully!` });
-      setCode('');
-      setName('');
-      setSlotPattern(patterns[0] || '');
+      setMessage({
+        type: "success",
+        text: `Course "${course.code} — ${course.name}" (${slotPattern}) created successfully!`,
+      });
+      setCode("");
+      setName("");
+      setSlotPattern(patterns[0] || "");
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Failed to create course' });
+      setMessage({
+        type: "error",
+        text: err.message || "Failed to create course",
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -107,14 +153,24 @@ function RegisterCourse() {
   return (
     <div className="register-panel glass-panel">
       <div className="panel-header">
-        <div className="panel-icon"><BookOpen size={22} /></div>
+        <div className="panel-icon">
+          <BookOpen size={22} />
+        </div>
         <div>
           <h2>Create New Course</h2>
           <p>Add a subject/course with its timetable slot</p>
         </div>
       </div>
 
-      {message && <div className={message.type === 'success' ? 'success-alert' : 'error-alert'}>{message.text}</div>}
+      {message && (
+        <div
+          className={
+            message.type === "success" ? "success-alert" : "error-alert"
+          }
+        >
+          {message.text}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="register-form">
         {/* Course Type Toggle */}
@@ -123,15 +179,15 @@ function RegisterCourse() {
           <div className="type-toggle">
             <button
               type="button"
-              className={`type-btn ${courseType === 'THEORY' ? 'active' : ''}`}
-              onClick={() => handleTypeChange('THEORY')}
+              className={`type-btn ${courseType === "THEORY" ? "active" : ""}`}
+              onClick={() => handleTypeChange("THEORY")}
             >
               <BookMarked size={16} /> Theory
             </button>
             <button
               type="button"
-              className={`type-btn ${courseType === 'LAB' ? 'active' : ''}`}
-              onClick={() => handleTypeChange('LAB')}
+              className={`type-btn ${courseType === "LAB" ? "active" : ""}`}
+              onClick={() => handleTypeChange("LAB")}
             >
               <FlaskConical size={16} /> Lab
             </button>
@@ -141,13 +197,26 @@ function RegisterCourse() {
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="course-code">Course Code *</label>
-            <input id="course-code" value={code} onChange={e => setCode(e.target.value)} placeholder="e.g. CS101" required />
+            <input
+              id="course-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="e.g. CS101"
+              required
+            />
           </div>
           <div className="form-group">
             <label htmlFor="course-slot">Slot Pattern *</label>
-            <select id="course-slot" value={slotPattern} onChange={e => setSlotPattern(e.target.value)} required>
-              {patterns.map(p => (
-                <option key={p} value={p}>{p}</option>
+            <select
+              id="course-slot"
+              value={slotPattern}
+              onChange={(e) => setSlotPattern(e.target.value)}
+              required
+            >
+              {patterns.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
               ))}
             </select>
           </div>
@@ -155,7 +224,13 @@ function RegisterCourse() {
 
         <div className="form-group">
           <label htmlFor="course-name">Course Name *</label>
-          <input id="course-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Introduction to Computer Science" required />
+          <input
+            id="course-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Introduction to Computer Science"
+            required
+          />
         </div>
 
         {/* Schedule Preview */}
@@ -163,22 +238,31 @@ function RegisterCourse() {
           <div className="schedule-preview glass-panel">
             <div className="schedule-preview-header">
               <Calendar size={16} />
-              <span>Schedule Preview — {blocks.length} class{blocks.length > 1 ? 'es' : ''} per week</span>
+              <span>
+                Schedule Preview — {blocks.length} class
+                {blocks.length > 1 ? "es" : ""} per week
+              </span>
             </div>
             <div className="schedule-blocks">
               {blocks.map((b, i) => (
                 <div key={i} className="schedule-block">
                   <span className="block-day">{b.day}</span>
                   <span className="block-code">{b.code}</span>
-                  <span className="block-time">{b.startTime} – {b.endTime}</span>
+                  <span className="block-time">
+                    {b.startTime} – {b.endTime}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        <button type="submit" className="btn btn-primary submit-btn" disabled={isSubmitting}>
-          {isSubmitting ? 'Creating...' : 'Create Course'}
+        <button
+          type="submit"
+          className="btn btn-primary submit-btn"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Creating..." : "Create Course"}
         </button>
       </form>
     </div>
@@ -190,39 +274,47 @@ function RegisterCourse() {
 // ─────────────────────────────────────────
 function RegisterStudent() {
   const [courses, setCourses] = useState<Course[]>([]);
-  const [name, setName] = useState('');
-  const [regNo, setRegNo] = useState('');
-  const [email, setEmail] = useState('');
-  const [photoUrl, setPhotoUrl] = useState('');
-  const [photoMode, setPhotoMode] = useState<'none' | 'upload' | 'camera'>('none');
+  const [name, setName] = useState("");
+  const [regNo, setRegNo] = useState("");
+  const [email, setEmail] = useState("");
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [photoMode, setPhotoMode] = useState<"none" | "upload" | "camera">(
+    "none",
+  );
   const [cameraActive, setCameraActive] = useState(false);
-  const [cameraError, setCameraError] = useState('');
+  const [cameraError, setCameraError] = useState("");
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [enrollInCourse, setEnrollInCourse] = useState(true);
-  const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [selectedCourseId, setSelectedCourseId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
-  // Auto face-embedding extraction from uploaded photo
-  const [faceEmbedding, setFaceEmbedding] = useState<number[] | null>(null);
-  const [faceStatus, setFaceStatus] = useState<'idle' | 'processing' | 'found' | 'not-found'>('idle');
+  // Auto face-embedding extraction from uploaded photo or live camera
+  const [faceEmbeddings, setFaceEmbeddings] = useState<number[][]>([]);
+  const [faceStatus, setFaceStatus] = useState<
+    "idle" | "processing" | "found" | "not-found"
+  >("idle");
+  const [isCapturing, setIsCapturing] = useState(false);
   const modelsLoadedRef = useRef(false);
 
   const ensureModels = async () => {
     if (modelsLoadedRef.current) return;
     await Promise.all([
-      faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
-      faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
-      faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
+      faceapi.nets.ssdMobilenetv1.loadFromUri("/models"),
+      faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
+      faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
     ]);
     modelsLoadedRef.current = true;
   };
 
   const extractEmbedding = async (dataUrl: string) => {
-    setFaceStatus('processing');
-    setFaceEmbedding(null);
+    setFaceStatus("processing");
+    setFaceEmbeddings([]);
     try {
       await ensureModels();
       const img = new Image();
@@ -231,44 +323,51 @@ function RegisterStudent() {
         img.onload = () => resolve();
         img.onerror = reject;
       });
-      const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
-      if (detection) {
-        setFaceEmbedding(Array.from(detection.descriptor));
-        setFaceStatus('found');
+      const detection = await faceapi
+        .detectSingleFace(img)
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+      if (detection && detection.detection.score > 0.85) {
+        setFaceEmbeddings([Array.from(detection.descriptor)]);
+        setFaceStatus("found");
       } else {
-        setFaceStatus('not-found');
+        setFaceStatus("not-found");
       }
     } catch (err) {
-      console.warn('Face extraction failed:', err);
-      setFaceStatus('not-found');
+      console.warn("Face extraction failed:", err);
+      setFaceStatus("not-found");
     }
   };
 
   // Trigger embedding extraction whenever a photo is set
   useEffect(() => {
     if (photoUrl) {
-      extractEmbedding(photoUrl);
+      if (photoMode === "upload") {
+        extractEmbedding(photoUrl);
+      }
     } else {
-      setFaceStatus('idle');
-      setFaceEmbedding(null);
+      setFaceStatus("idle");
+      setFaceEmbeddings([]);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photoUrl]);
 
   // Stop camera stream when mode changes away from camera
   const stopCamera = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
+      streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
     setCameraActive(false);
-    setCameraError('');
+    setCameraError("");
   };
 
   const startCamera = async () => {
-    setCameraError('');
+    setCameraError("");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: 640, height: 480 },
+      });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -276,27 +375,55 @@ function RegisterStudent() {
       }
       setCameraActive(true);
     } catch (err: any) {
-      setCameraError('Camera access denied or not available. Please allow camera permission.');
+      setCameraError(
+        "Camera access denied or not available. Please allow camera permission.",
+      );
     }
   };
 
-  const snapPhoto = () => {
+  const snapPhoto = async () => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
     const canvas = canvasRef.current;
+
+    setIsCapturing(true);
+    setFaceStatus("processing");
+    await ensureModels();
+
+    const captured: number[][] = [];
+    
+    // Try to capture up to 5 embeddings
+    for (let i = 0; i < 15; i++) {
+      if (captured.length >= 5) break;
+      const det = await faceapi.detectSingleFace(video).withFaceLandmarks().withFaceDescriptor();
+      if (det && det.detection.score > 0.85) {
+        captured.push(Array.from(det.descriptor));
+      }
+      await new Promise(r => setTimeout(r, 200));
+    }
+
+    if (captured.length > 0) {
+      setFaceEmbeddings(captured);
+      setFaceStatus("found");
+    } else {
+      setFaceStatus("not-found");
+    }
+
+    // Capture the final display photo
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    canvas.getContext('2d')!.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    canvas.getContext("2d")!.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
     setPhotoUrl(dataUrl);
     stopCamera();
+    setIsCapturing(false);
   };
 
-  const handleModeChange = (mode: 'upload' | 'camera') => {
+  const handleModeChange = (mode: "upload" | "camera") => {
     stopCamera();
-    setPhotoUrl('');
+    setPhotoUrl("");
     setPhotoMode(mode);
-    if (mode === 'camera') {
+    if (mode === "camera") {
       // small delay to let component render the video element first
       setTimeout(() => startCamera(), 100);
     }
@@ -304,16 +431,18 @@ function RegisterStudent() {
 
   const clearPhoto = () => {
     stopCamera();
-    setPhotoUrl('');
-    setPhotoMode('none');
+    setPhotoUrl("");
+    setPhotoMode("none");
   };
 
   // Cleanup camera on unmount
-  useEffect(() => { return () => stopCamera(); }, []);
+  useEffect(() => {
+    return () => stopCamera();
+  }, []);
 
   useEffect(() => {
-    fetchApi('/courses')
-      .then(data => {
+    fetchApi("/courses")
+      .then((data) => {
         setCourses(data);
         if (data.length > 0) setSelectedCourseId(String(data[0].id));
       })
@@ -331,8 +460,8 @@ function RegisterStudent() {
 
       // POST /api/students returns 201 for a new student, or 200 (with _reused:true) for an
       // existing student with the same registration number. Either way, proceed to enrollment.
-      const student = await fetchApi('/students', {
-        method: 'POST',
+      const student = await fetchApi("/students", {
+        method: "POST",
         body: JSON.stringify({
           registrationNumber: normalizedRegNo,
           name: name.trim(),
@@ -343,52 +472,81 @@ function RegisterStudent() {
 
       const isReused = !!student._reused;
 
-      // Auto-save face embedding extracted from the uploaded photo
+      // Auto-save face embeddings extracted from the photo or camera
       let faceAutoEnrolled = false;
-      if (faceEmbedding) {
+      if (faceEmbeddings.length > 0) {
         try {
           await fetchApi(`/students/${student.id}/faces`, {
-            method: 'POST',
+            method: "POST",
             body: JSON.stringify({
-              embeddings: [faceEmbedding],
-              modelName: 'face-api.js-resnet34',
-              modelVersion: '0.22.2',
+              embeddings: faceEmbeddings,
+              modelName: "face-api.js-resnet34",
+              modelVersion: "0.22.2",
             }),
           });
           faceAutoEnrolled = true;
         } catch (faceErr) {
           // Non-fatal: face enrollment failure should not block registration
-          console.warn('Auto face enrollment failed:', faceErr);
+          console.warn("Auto face enrollment failed:", faceErr);
         }
       }
 
       if (enrollInCourse && selectedCourseId) {
         try {
-          await fetchApi('/enrollments', {
-            method: 'POST',
-            body: JSON.stringify({ studentId: student.id, courseId: parseInt(selectedCourseId) }),
+          await fetchApi("/enrollments", {
+            method: "POST",
+            body: JSON.stringify({
+              studentId: student.id,
+              courseId: parseInt(selectedCourseId),
+            }),
           });
-          const course = courses.find(c => String(c.id) === selectedCourseId);
-          const courseName = course ? `${course.code} — ${course.name}` : selectedCourseId;
-          const prefix = isReused ? `Existing student "${student.name}"` : `Student "${student.name}"`;
-          const faceNote = faceAutoEnrolled ? ' · Face ID enrolled ✓' : (photoUrl && faceStatus === 'not-found' ? ' · No face detected in photo' : '');
-          setMessage({ type: 'success', text: `${prefix} enrolled in ${courseName}!${faceNote}` });
+          const course = courses.find((c) => String(c.id) === selectedCourseId);
+          const courseName = course
+            ? `${course.code} — ${course.name}`
+            : selectedCourseId;
+          const prefix = isReused
+            ? `Existing student "${student.name}"`
+            : `Student "${student.name}"`;
+          const faceNote = faceAutoEnrolled
+            ? " · Face ID enrolled ✓"
+            : photoUrl && faceStatus === "not-found"
+              ? " · No face detected in photo"
+              : "";
+          setMessage({
+            type: "success",
+            text: `${prefix} enrolled in ${courseName}!${faceNote}`,
+          });
         } catch (err: any) {
-          if (err.message?.includes('already enrolled')) {
-            setMessage({ type: 'error', text: `"${student.name}" (${normalizedRegNo}) is already enrolled in this course.` });
+          if (err.message?.includes("already enrolled")) {
+            setMessage({
+              type: "error",
+              text: `"${student.name}" (${normalizedRegNo}) is already enrolled in this course.`,
+            });
           } else {
             throw err;
           }
         }
       } else {
-        const faceNote = faceAutoEnrolled ? ' · Face ID enrolled ✓' : (photoUrl && faceStatus === 'not-found' ? ' · No face detected in photo' : '');
-        setMessage({ type: 'success', text: `Student "${student.name}" registered successfully!${faceNote}` });
+        const faceNote = faceAutoEnrolled
+          ? " · Face ID enrolled ✓"
+          : photoUrl && faceStatus === "not-found"
+            ? " · No face detected in photo"
+            : "";
+        setMessage({
+          type: "success",
+          text: `Student "${student.name}" registered successfully!${faceNote}`,
+        });
       }
 
-      setName(''); setRegNo(''); setEmail(''); setPhotoUrl(''); setPhotoMode('none');
-      setFaceEmbedding(null); setFaceStatus('idle');
+      setName("");
+      setRegNo("");
+      setEmail("");
+      setPhotoUrl("");
+      setPhotoMode("none");
+      setFaceEmbeddings([]);
+      setFaceStatus("idle");
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.message || 'Registration failed' });
+      setMessage({ type: "error", text: err.message || "Registration failed" });
     } finally {
       setIsSubmitting(false);
     }
@@ -397,30 +555,58 @@ function RegisterStudent() {
   return (
     <div className="register-panel glass-panel">
       <div className="panel-header">
-        <div className="panel-icon"><UserPlus size={22} /></div>
+        <div className="panel-icon">
+          <UserPlus size={22} />
+        </div>
         <div>
           <h2>Register New Student</h2>
           <p>Add a student and optionally enroll them in a course</p>
         </div>
       </div>
 
-      {message && <div className={message.type === 'success' ? 'success-alert' : 'error-alert'}>{message.text}</div>}
+      {message && (
+        <div
+          className={
+            message.type === "success" ? "success-alert" : "error-alert"
+          }
+        >
+          {message.text}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="register-form">
         <div className="form-row">
           <div className="form-group">
             <label htmlFor="stu-name">Full Name *</label>
-            <input id="stu-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. John Doe" required />
+            <input
+              id="stu-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. John Doe"
+              required
+            />
           </div>
           <div className="form-group">
             <label htmlFor="stu-reg">Registration Number *</label>
-            <input id="stu-reg" value={regNo} onChange={e => setRegNo(e.target.value)} placeholder="e.g. 2024CS001" required />
+            <input
+              id="stu-reg"
+              value={regNo}
+              onChange={(e) => setRegNo(e.target.value)}
+              placeholder="e.g. 2024CS001"
+              required
+            />
           </div>
         </div>
 
         <div className="form-group">
           <label htmlFor="stu-email">Email (Optional)</label>
-          <input id="stu-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="student@example.com" />
+          <input
+            id="stu-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="student@example.com"
+          />
         </div>
 
         {/* Photo capture */}
@@ -431,23 +617,42 @@ function RegisterStudent() {
           {photoUrl && (
             <div className="photo-preview-wrap">
               <img src={photoUrl} alt="Student" className="photo-preview" />
-              <button type="button" className="btn btn-sm btn-danger photo-clear-btn" onClick={clearPhoto} title="Remove photo">
+              <button
+                type="button"
+                className="btn btn-sm btn-danger photo-clear-btn"
+                onClick={clearPhoto}
+                title="Remove photo"
+              >
                 <X size={14} /> Remove
               </button>
               {/* Face detection status badge */}
-              <div style={{ marginTop: '0.5rem' }}>
-                {faceStatus === 'processing' && (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              <div style={{ marginTop: "0.5rem" }}>
+                {faceStatus === "processing" && (
+                  <span
+                    style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}
+                  >
                     🔍 Scanning for face...
                   </span>
                 )}
-                {faceStatus === 'found' && (
-                  <span style={{ fontSize: '0.8rem', color: '#22c55e', fontWeight: 600 }}>
+                {faceStatus === "found" && (
+                  <span
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#22c55e",
+                      fontWeight: 600,
+                    }}
+                  >
                     ✅ Face detected — will auto-enroll for attendance
                   </span>
                 )}
-                {faceStatus === 'not-found' && (
-                  <span style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: 600 }}>
+                {faceStatus === "not-found" && (
+                  <span
+                    style={{
+                      fontSize: "0.8rem",
+                      color: "#f59e0b",
+                      fontWeight: 600,
+                    }}
+                  >
                     ⚠️ No face detected — manual enrollment required later
                   </span>
                 )}
@@ -461,64 +666,93 @@ function RegisterStudent() {
               <div className="photo-mode-btns">
                 <button
                   type="button"
-                  className={`photo-mode-btn ${photoMode === 'upload' ? 'active' : ''}`}
-                  onClick={() => handleModeChange('upload')}
+                  className={`photo-mode-btn ${photoMode === "upload" ? "active" : ""}`}
+                  onClick={() => handleModeChange("upload")}
                 >
                   <Upload size={15} /> Upload File
                 </button>
                 <button
                   type="button"
-                  className={`photo-mode-btn ${photoMode === 'camera' ? 'active' : ''}`}
-                  onClick={() => handleModeChange('camera')}
+                  className={`photo-mode-btn ${photoMode === "camera" ? "active" : ""}`}
+                  onClick={() => handleModeChange("camera")}
                 >
                   <Camera size={15} /> Live Camera
                 </button>
               </div>
 
               {/* Upload mode */}
-              {photoMode === 'upload' && (
+              {photoMode === "upload" && (
                 <div className="photo-upload-zone">
                   <input
                     id="stu-photo-file"
                     type="file"
                     accept="image/*"
-                    style={{ display: 'none' }}
-                    onChange={e => {
+                    style={{ display: "none" }}
+                    onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
                       // Guard: reject files over 4 MB before base64 encode (server limit is 5 MB)
                       if (file.size > 4 * 1024 * 1024) {
-                        setMessage({ type: 'error', text: 'Photo is too large. Please choose an image under 4 MB.' });
-                        e.target.value = '';
+                        setMessage({
+                          type: "error",
+                          text: "Photo is too large. Please choose an image under 4 MB.",
+                        });
+                        e.target.value = "";
                         return;
                       }
                       const reader = new FileReader();
-                      reader.onload = ev => setPhotoUrl(ev.target?.result as string);
+                      reader.onload = (ev) =>
+                        setPhotoUrl(ev.target?.result as string);
                       reader.readAsDataURL(file);
                     }}
                   />
                   <label htmlFor="stu-photo-file" className="upload-label">
                     <Upload size={28} />
                     <span>Click to select a photo</span>
-                    <span className="upload-hint">JPG, PNG, WEBP — max 5 MB</span>
+                    <span className="upload-hint">
+                      JPG, PNG, WEBP — max 5 MB
+                    </span>
                   </label>
                 </div>
               )}
 
               {/* Camera mode */}
-              {photoMode === 'camera' && (
+              {photoMode === "camera" && (
                 <div className="camera-zone">
                   {cameraError ? (
-                    <div className="error-alert" style={{ marginTop: '0.5rem' }}>{cameraError}</div>
+                    <div
+                      className="error-alert"
+                      style={{ marginTop: "0.5rem" }}
+                    >
+                      {cameraError}
+                    </div>
                   ) : (
                     <>
-                      <video ref={videoRef} className="camera-video" autoPlay playsInline muted />
-                      <canvas ref={canvasRef} style={{ display: 'none' }} />
+                      <video
+                        ref={videoRef}
+                        className="camera-video"
+                        autoPlay
+                        playsInline
+                        muted
+                      />
+                      <canvas ref={canvasRef} style={{ display: "none" }} />
                       <div className="camera-actions">
-                        <button type="button" className="btn btn-primary" onClick={snapPhoto} disabled={!cameraActive}>
-                          <Camera size={16} /> Snap Photo
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={snapPhoto}
+                          disabled={!cameraActive || isCapturing}
+                        >
+                          <Camera size={16} /> {isCapturing ? "Capturing..." : "Snap Photo"}
                         </button>
-                        <button type="button" className="btn btn-secondary btn-sm" onClick={() => { stopCamera(); startCamera(); }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => {
+                            stopCamera();
+                            startCamera();
+                          }}
+                        >
                           <RefreshCw size={14} /> Retry
                         </button>
                       </div>
@@ -530,24 +764,42 @@ function RegisterStudent() {
           )}
         </div>
 
-        <div className="enroll-section glass-panel" style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.12)', padding: '1rem' }}>
+        <div
+          className="enroll-section glass-panel"
+          style={{
+            background: "rgba(99,102,241,0.05)",
+            border: "1px solid rgba(99,102,241,0.12)",
+            padding: "1rem",
+          }}
+        >
           <label className="checkbox-label">
-            <input type="checkbox" checked={enrollInCourse} onChange={e => setEnrollInCourse(e.target.checked)} style={{ width: 'auto', marginRight: '0.5rem' }} />
+            <input
+              type="checkbox"
+              checked={enrollInCourse}
+              onChange={(e) => setEnrollInCourse(e.target.checked)}
+              style={{ width: "auto", marginRight: "0.5rem" }}
+            />
             Enroll this student in a course
           </label>
 
           {enrollInCourse && (
-            <div className="form-group" style={{ marginTop: '0.75rem' }}>
+            <div className="form-group" style={{ marginTop: "0.75rem" }}>
               <label htmlFor="enroll-course">Select Course</label>
               {courses.length === 0 ? (
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                  No courses available. <a href="/register">Create a course first.</a>
+                <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+                  No courses available.{" "}
+                  <a href="/register">Create a course first.</a>
                 </p>
               ) : (
-                <select id="enroll-course" value={selectedCourseId} onChange={e => setSelectedCourseId(e.target.value)}>
-                  {courses.map(c => (
+                <select
+                  id="enroll-course"
+                  value={selectedCourseId}
+                  onChange={(e) => setSelectedCourseId(e.target.value)}
+                >
+                  {courses.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.code} — {c.name} ({c.type === 'LAB' ? '🧪 ' : ''}{c.slotPattern})
+                      {c.code} — {c.name} ({c.type === "LAB" ? "🧪 " : ""}
+                      {c.slotPattern})
                     </option>
                   ))}
                 </select>
@@ -556,8 +808,12 @@ function RegisterStudent() {
           )}
         </div>
 
-        <button type="submit" className="btn btn-primary submit-btn" disabled={isSubmitting}>
-          {isSubmitting ? 'Registering...' : 'Register Student'}
+        <button
+          type="submit"
+          className="btn btn-primary submit-btn"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Registering..." : "Register Student"}
         </button>
       </form>
     </div>
@@ -570,32 +826,39 @@ function RegisterStudent() {
 function ManageCourses() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const loadCourses = useCallback(async () => {
     setIsLoading(true);
-    setError('');
+    setError("");
     try {
-      const data = await fetchApi('/courses');
+      const data = await fetchApi("/courses");
       setCourses(data);
     } catch (err: any) {
-      setError(err.message || 'Failed to load courses');
+      setError(err.message || "Failed to load courses");
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadCourses(); }, [loadCourses]);
+  useEffect(() => {
+    loadCourses();
+  }, [loadCourses]);
 
   const handleDelete = async (id: number, code: string) => {
-    if (!confirm(`Delete course "${code}" and all its enrollments/sessions? This cannot be undone.`)) return;
+    if (
+      !confirm(
+        `Delete course "${code}" and all its enrollments/sessions? This cannot be undone.`,
+      )
+    )
+      return;
     setDeletingId(id);
     try {
-      await fetchApi(`/courses/${id}`, { method: 'DELETE' });
-      setCourses(prev => prev.filter(c => c.id !== id));
+      await fetchApi(`/courses/${id}`, { method: "DELETE" });
+      setCourses((prev) => prev.filter((c) => c.id !== id));
     } catch (err: any) {
-      alert(err.message || 'Failed to delete course');
+      alert(err.message || "Failed to delete course");
     } finally {
       setDeletingId(null);
     }
@@ -604,7 +867,9 @@ function ManageCourses() {
   return (
     <div className="register-panel glass-panel">
       <div className="panel-header">
-        <div className="panel-icon"><List size={22} /></div>
+        <div className="panel-icon">
+          <List size={22} />
+        </div>
         <div>
           <h2>Manage Courses</h2>
           <p>View and delete existing courses</p>
@@ -614,11 +879,15 @@ function ManageCourses() {
       {error && <div className="error-alert">{error}</div>}
 
       {isLoading ? (
-        <p style={{ color: 'var(--text-muted)', padding: '1rem 0' }}>Loading...</p>
+        <p style={{ color: "var(--text-muted)", padding: "1rem 0" }}>
+          Loading...
+        </p>
       ) : courses.length === 0 ? (
-        <p style={{ color: 'var(--text-muted)', padding: '1rem 0' }}>No courses found. Create one using the "Register Course" tab.</p>
+        <p style={{ color: "var(--text-muted)", padding: "1rem 0" }}>
+          No courses found. Create one using the "Register Course" tab.
+        </p>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ overflowX: "auto" }}>
           <table className="data-table">
             <thead>
               <tr>
@@ -627,29 +896,48 @@ function ManageCourses() {
                 <th>Type</th>
                 <th>Slot Pattern</th>
                 <th>Classes/Week</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {courses.map(course => {
+              {courses.map((course) => {
                 const blocks = getBlocksForPattern(course.slotPattern);
                 return (
                   <tr key={course.id}>
-                    <td style={{ fontWeight: 600, fontFamily: 'monospace' }}>{course.code}</td>
+                    <td style={{ fontWeight: 600, fontFamily: "monospace" }}>
+                      {course.code}
+                    </td>
                     <td>{course.name}</td>
                     <td>
-                      <span className={`badge ${course.type === 'LAB' ? 'badge-info' : 'badge-neutral'}`}>
-                        {course.type === 'LAB' ? '🧪 Lab' : '📚 Theory'}
+                      <span
+                        className={`badge ${course.type === "LAB" ? "badge-info" : "badge-neutral"}`}
+                      >
+                        {course.type === "LAB" ? "🧪 Lab" : "📚 Theory"}
                       </span>
                     </td>
-                    <td style={{ fontFamily: 'monospace', color: 'var(--primary)', fontSize: '0.85rem' }}>{course.slotPattern}</td>
-                    <td style={{ color: 'var(--text-muted)', textAlign: 'center' }}>{blocks.length}</td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td
+                      style={{
+                        fontFamily: "monospace",
+                        color: "var(--primary)",
+                        fontSize: "0.85rem",
+                      }}
+                    >
+                      {course.slotPattern}
+                    </td>
+                    <td
+                      style={{
+                        color: "var(--text-muted)",
+                        textAlign: "center",
+                      }}
+                    >
+                      {blocks.length}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
                       <button
                         className="icon-btn"
                         onClick={() => handleDelete(course.id, course.code)}
                         disabled={deletingId === course.id}
-                        style={{ color: 'var(--danger)' }}
+                        style={{ color: "var(--danger)" }}
                         title="Delete course"
                       >
                         <Trash2 size={16} />
@@ -672,32 +960,39 @@ function ManageCourses() {
 function ManageStudents() {
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const loadStudents = useCallback(async () => {
     setIsLoading(true);
-    setError('');
+    setError("");
     try {
-      const data = await fetchApi('/students');
+      const data = await fetchApi("/students");
       setStudents(data);
     } catch (err: any) {
-      setError(err.message || 'Failed to load students');
+      setError(err.message || "Failed to load students");
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  useEffect(() => { loadStudents(); }, [loadStudents]);
+  useEffect(() => {
+    loadStudents();
+  }, [loadStudents]);
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Delete student "${name}" and all their enrollment/attendance records? This cannot be undone.`)) return;
+    if (
+      !confirm(
+        `Delete student "${name}" and all their enrollment/attendance records? This cannot be undone.`,
+      )
+    )
+      return;
     setDeletingId(id);
     try {
-      await fetchApi(`/students/${id}`, { method: 'DELETE' });
-      setStudents(prev => prev.filter(s => s.id !== id));
+      await fetchApi(`/students/${id}`, { method: "DELETE" });
+      setStudents((prev) => prev.filter((s) => s.id !== id));
     } catch (err: any) {
-      alert(err.message || 'Failed to delete student');
+      alert(err.message || "Failed to delete student");
     } finally {
       setDeletingId(null);
     }
@@ -706,7 +1001,9 @@ function ManageStudents() {
   return (
     <div className="register-panel glass-panel">
       <div className="panel-header">
-        <div className="panel-icon"><GraduationCap size={22} /></div>
+        <div className="panel-icon">
+          <GraduationCap size={22} />
+        </div>
         <div>
           <h2>Manage Students</h2>
           <p>View and delete registered students</p>
@@ -716,32 +1013,42 @@ function ManageStudents() {
       {error && <div className="error-alert">{error}</div>}
 
       {isLoading ? (
-        <p style={{ color: 'var(--text-muted)', padding: '1rem 0' }}>Loading...</p>
+        <p style={{ color: "var(--text-muted)", padding: "1rem 0" }}>
+          Loading...
+        </p>
       ) : students.length === 0 ? (
-        <p style={{ color: 'var(--text-muted)', padding: '1rem 0' }}>No students found. Register one using the "Register Student" tab.</p>
+        <p style={{ color: "var(--text-muted)", padding: "1rem 0" }}>
+          No students found. Register one using the "Register Student" tab.
+        </p>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div style={{ overflowX: "auto" }}>
           <table className="data-table">
             <thead>
               <tr>
                 <th>Reg. No.</th>
                 <th>Name</th>
                 <th>Email</th>
-                <th style={{ textAlign: 'right' }}>Actions</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {students.map(student => (
+              {students.map((student) => (
                 <tr key={student.id}>
-                  <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{student.registrationNumber}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: "0.85rem" }}>
+                    {student.registrationNumber}
+                  </td>
                   <td style={{ fontWeight: 500 }}>{student.name}</td>
-                  <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{student.email || '—'}</td>
-                  <td style={{ textAlign: 'right' }}>
+                  <td
+                    style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}
+                  >
+                    {student.email || "—"}
+                  </td>
+                  <td style={{ textAlign: "right" }}>
                     <button
                       className="icon-btn"
                       onClick={() => handleDelete(student.id, student.name)}
                       disabled={deletingId === student.id}
-                      style={{ color: 'var(--danger)' }}
+                      style={{ color: "var(--danger)" }}
                       title="Delete student"
                     >
                       <Trash2 size={16} />

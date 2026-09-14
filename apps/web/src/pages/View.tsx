@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { fetchApi } from '../lib/api';
-import { Eye, Search, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Eye, Search, CheckCircle, XCircle, Clock, Download } from 'lucide-react';
+import { exportToCsv } from '../lib/exportUtils';
 import './View.css';
 
-interface Slot { id: number; name: string; startTime: string; endTime: string; }
-interface Course { id: number; code: string; name: string; slotId: number; slot?: Slot; }
+interface Slot { id: string; name: string; startTime: string; endTime: string; }
+interface Course { id: number; code: string; name: string; slotPattern: string; }
 interface AttendanceRecord {
   id: number;
   studentId: number;
@@ -22,7 +23,7 @@ interface AttendanceRecord {
 interface SessionDetail {
   session: { id: number; date: string; status: string; startedAt: string; finalizedAt: string | null; };
   course: { id: number; code: string; name: string; } | null;
-  slot: { id: number; name: string; startTime: string; endTime: string; } | null;
+  slot: { id: string; name: string; startTime: string; endTime: string; } | null;
   records: AttendanceRecord[];
 }
 
@@ -30,7 +31,7 @@ export function View() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
-  const [selectedSlotId, setSelectedSlotId] = useState('');
+  const [selectedSlotId, setSelectedSlotId] = useState<string>('');
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,26 +39,50 @@ export function View() {
   const [hasSearched, setHasSearched] = useState(false);
 
   useEffect(() => {
-    Promise.all([fetchApi('/courses'), fetchApi('/slots')])
-      .then(([c, s]) => {
+    fetchApi('/courses')
+      .then((c) => {
         setCourses(c);
-        setSlots(s);
         if (c.length > 0) {
           setSelectedCourseId(String(c[0].id));
-          const courseSlotId = c[0].slotId;
-          setSelectedSlotId(String(courseSlotId));
-        } else if (s.length > 0) {
-          setSelectedSlotId(String(s[0].id));
         }
       })
       .catch(console.error);
   }, []);
 
-  // When course changes, auto-fill its default slot
+  // Compute ALL available slots for the selected course (all days, deduped by code)
+  useEffect(() => {
+    const fetchBlocks = async () => {
+      const course = courses.find(c => String(c.id) === selectedCourseId);
+      if (course && course.slotPattern) {
+        const { getBlocksForPattern } = await import('@attendance/shared');
+        const blocks = getBlocksForPattern(course.slotPattern);
+        // Deduplicate by code — same slot code can appear on multiple days
+        const seen = new Set<string>();
+        const uniqueBlocks = blocks.filter(b => {
+          if (seen.has(b.code)) return false;
+          seen.add(b.code);
+          return true;
+        });
+        const slotList = uniqueBlocks.map((b: any) => ({
+          id: b.code,
+          name: b.code,
+          startTime: b.startTime,
+          endTime: b.endTime,
+        }));
+        setSlots(slotList);
+        if (slotList.length > 0 && !slotList.find(s => s.id === selectedSlotId)) {
+          setSelectedSlotId(slotList[0].id);
+        }
+      } else {
+        setSlots([]);
+      }
+    };
+    fetchBlocks();
+  }, [selectedCourseId, courses]);
+
+  // When course changes, reset session
   const handleCourseChange = (id: string) => {
     setSelectedCourseId(id);
-    const course = courses.find(c => String(c.id) === id);
-    if (course) setSelectedSlotId(String(course.slotId));
     setSessionDetail(null);
     setHasSearched(false);
   };
@@ -72,7 +97,7 @@ export function View() {
     try {
       // Find the session for this course/slot/date
       const sessions = await fetchApi(
-        `/sessions?courseId=${selectedCourseId}&slotId=${selectedSlotId}&date=${selectedDate}`
+        `/sessions?courseId=${selectedCourseId}&slotCode=${selectedSlotId}&date=${selectedDate}`
       );
       if (!sessions || sessions.length === 0) {
         setSessionDetail(null);
@@ -95,13 +120,27 @@ export function View() {
   const totalCount = sessionDetail?.records.length ?? 0;
   const attendancePercent = totalCount > 0 ? Math.round((presentCount / totalCount) * 100) : 0;
 
+  const handleExportCsv = () => {
+    if (!sessionDetail) return;
+    exportToCsv(
+      sessionDetail.records,
+      sessionDetail.session.date,
+      sessionDetail.course?.code || 'Unknown'
+    );
+  };
+
   return (
     <div className="view-page">
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1>View Attendance</h1>
           <p>Select a course, slot, and date to view attendance records</p>
         </div>
+        {sessionDetail && (
+          <button className="btn btn-secondary" onClick={handleExportCsv} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Download size={16} /> Export CSV
+          </button>
+        )}
       </div>
 
       {/* Filter Panel */}

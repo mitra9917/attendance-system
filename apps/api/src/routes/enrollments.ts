@@ -86,6 +86,13 @@ router.delete('/:id', requireAdmin, async (req: Request, res: Response): Promise
     const existing = await db.orm.public.Enrollment.where({ id }).first();
     if (!existing) { res.status(404).json({ error: 'Enrollment not found' }); return; }
 
+    // Clean up AttendanceRecord rows for this student in ONGOING sessions of this course.
+    // FINALIZED sessions are left intact to preserve historical data.
+    const ongoingSessions = await db.orm.public.AttendanceSession.where({ courseId: existing.courseId, status: 'ONGOING' }).all();
+    for (const session of ongoingSessions) {
+      await db.orm.public.AttendanceRecord.where({ sessionId: session.id, studentId: existing.studentId }).delete();
+    }
+
     await db.orm.public.Enrollment.where({ id }).delete();
     res.json({ message: 'Enrollment removed' });
   } catch (err) {

@@ -134,32 +134,48 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
     try {
       if (state === 'IDLE' || state === 'FACE_FOUND') {
         // Phase 1: fast detection only — no landmark or descriptor
-        const detection = await faceapi.detectSingleFace(video);
+        const detections = await faceapi.detectAllFaces(video);
 
-        if (detection) {
-          stableFrames.current += 1;
-          if (state === 'IDLE') {
-            setPromptAndState('FACE_FOUND', `Hold still… (${Math.min(stableFrames.current, STABLE_FRAMES_REQUIRED)}/${STABLE_FRAMES_REQUIRED})`);
+        if (detections.length > 1) {
+          stableFrames.current = 0;
+          setPromptAndState('IDLE', 'Multiple faces detected — ensure only one student is in frame');
+          drawBox(detections, video);
+        } else if (detections.length === 1) {
+          const detection = detections[0];
+          
+          // Face Quality Checks: High confidence detection and face must be large enough
+          if (detection.score > 0.85 && detection.box.width > 100) {
+            stableFrames.current += 1;
+            if (state === 'IDLE') {
+              setPromptAndState('FACE_FOUND', `Hold still… (${Math.min(stableFrames.current, STABLE_FRAMES_REQUIRED)}/${STABLE_FRAMES_REQUIRED})`);
+            } else {
+              setPrompt(`Hold still… (${Math.min(stableFrames.current, STABLE_FRAMES_REQUIRED)}/${STABLE_FRAMES_REQUIRED})`);
+            }
+
+            if (stableFrames.current >= STABLE_FRAMES_REQUIRED) {
+              // Phase 2: face is stable — run full descriptor extraction
+              setPromptAndState('MATCHING', '🔍 Verifying identity…');
+              await runMatch(video);
+            }
           } else {
-            setPrompt(`Hold still… (${Math.min(stableFrames.current, STABLE_FRAMES_REQUIRED)}/${STABLE_FRAMES_REQUIRED})`);
+            // Face found but poor quality
+            stableFrames.current = 0;
+            if (detection.box.width <= 100) {
+               setPromptAndState('IDLE', 'Move closer to the camera');
+            } else {
+               setPromptAndState('IDLE', 'Face not clear — reposition or improve lighting');
+            }
           }
-
-          if (stableFrames.current >= STABLE_FRAMES_REQUIRED) {
-            // Phase 2: face is stable — run full descriptor extraction
-            setPromptAndState('MATCHING', '🔍 Verifying identity…');
-            await runMatch(video);
-          }
+          
+          drawBox(detections, video);
         } else {
           // Face lost
           if (stableFrames.current > 0) {
             stableFrames.current = 0;
             setPromptAndState('IDLE', 'Face not visible — reposition');
           }
+          drawBox([], video);
         }
-
-        // Draw bounding box if we see a face
-        drawBox(detection ?? null, video);
-
       } else if (state === 'SUCCESS' || state === 'NO_MATCH') {
         // Waiting for auto-reset — do nothing except keep rAF alive
       }
@@ -187,7 +203,7 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
         if (d < bestMatch.distance) bestMatch = { studentId: ld.studentId, distance: d };
       }
 
-      if (bestMatch.distance < 0.45) {
+      if (bestMatch.distance <= 0.58) {
         const rec = recordsRef.current.find(r => r.studentId === bestMatch.studentId);
         if (rec) {
           const now = Date.now();
@@ -197,7 +213,7 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
           if (rec.status !== 'PRESENT' && now - lastHit > COOLDOWN_MS) {
             matchCooldowns.current.set(bestMatch.studentId, now);
             onMatch(bestMatch.studentId);
-            setPromptAndState('SUCCESS', `✅ ${name} marked Present!`);
+            setPromptAndState('SUCCESS', `✅ ${name} marked Present! (Score: ${bestMatch.distance.toFixed(2)})`);
           } else if (rec.status === 'PRESENT') {
             setPromptAndState('SUCCESS', `✅ ${name} is already present`);
           } else {
@@ -226,15 +242,17 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
     }
   };
 
-  const drawBox = (detection: faceapi.FaceDetection | null, video: HTMLVideoElement) => {
+  const drawBox = (detections: faceapi.FaceDetection | faceapi.FaceDetection[], video: HTMLVideoElement) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const displaySize = { width: video.videoWidth, height: video.videoHeight };
     faceapi.matchDimensions(canvas, displaySize);
     const ctx = canvas.getContext('2d');
     ctx?.clearRect(0, 0, displaySize.width, displaySize.height);
-    if (detection) {
-      const resized = faceapi.resizeResults(detection, displaySize);
+    
+    const detsArray = Array.isArray(detections) ? detections : (detections ? [detections] : []);
+    if (detsArray.length > 0) {
+      const resized = faceapi.resizeResults(detsArray, displaySize);
       faceapi.draw.drawDetections(canvas, resized);
     }
   };

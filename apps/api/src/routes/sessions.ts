@@ -55,6 +55,15 @@ router.post('/', requireAuth, async (req: Request, res: Response): Promise<void>
       });
     }
 
+    await db.orm.public.AuditLog.create({
+      userId: teacher.userId,
+      action: 'SESSION_STARTED',
+      entityType: 'AttendanceSession',
+      entityId: session.id,
+      details: JSON.stringify({ courseId, slotCode, date, teacherId: teacher.userId }),
+      ip: req.ip || '',
+    });
+
     res.status(201).json({ session, existing: false });
   } catch (err) {
     console.error(err);
@@ -87,6 +96,7 @@ router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> 
 });
 
 // GET /api/sessions/:id  — session detail with enriched records (student name + regNo + serialNumber)
+// Only shows records for CURRENTLY ENROLLED students — orphan records for unenrolled students are excluded.
 // Also reconciles: if students were enrolled AFTER the session started, they won't have
 // AttendanceRecord rows yet. We add NOT_MARKED records for them on-the-fly.
 router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
@@ -97,15 +107,30 @@ router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<voi
 
     const course = await db.orm.public.Course.first({ id: session.courseId });
 
-    // Get all current enrollments for this course
+    // Derive slot info from course slotPattern + session slotCode (no Slot DB table)
+    let slot: { id: string; name: string; startTime: string; endTime: string; } | null = null;
+    if (course) {
+      const blocks = getBlocksForPattern(course.slotPattern);
+      const block = blocks.find(b => b.code === session.slotCode);
+      if (block) {
+        slot = { id: block.code, name: block.code, startTime: block.startTime, endTime: block.endTime };
+      }
+    }
+
+    // Get CURRENT enrollments — this is the authoritative list of who should appear
     const enrollments = await db.orm.public.Enrollment.where({ courseId: session.courseId }).all();
+    const enrolledStudentIds = new Set(enrollments.map(e => e.studentId));
 
     // Get existing attendance records for this session
-    let rawRecords = await db.orm.public.AttendanceRecord.where({ sessionId: id }).all();
-    const existingStudentIds = new Set(rawRecords.map(r => r.studentId));
+    const rawRecords = await db.orm.public.AttendanceRecord.where({ sessionId: id }).all();
+
+    // Filter to only records for currently-enrolled students (drop orphan records)
+    const enrolledRawRecords = rawRecords.filter(r => enrolledStudentIds.has(r.studentId));
+    const existingStudentIds = new Set(enrolledRawRecords.map(r => r.studentId));
 
     // For any enrolled student missing a record (enrolled after session started),
     // create a NOT_MARKED record so they appear correctly — not as ABSENT
+    const supplementedRecords = [...enrolledRawRecords];
     if (session.status !== 'FINALIZED') {
       for (const enrollment of enrollments) {
         if (!existingStudentIds.has(enrollment.studentId)) {
@@ -114,16 +139,16 @@ router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<voi
             studentId: enrollment.studentId,
             status: 'NOT_MARKED',
           });
-          rawRecords = [...rawRecords, newRecord];
+          supplementedRecords.push(newRecord);
         }
       }
     }
 
     // Enrich records with student info + serialNumber from enrollment
     const records = await Promise.all(
-      rawRecords.map(async (r) => {
+      supplementedRecords.map(async (r) => {
         const student = await db.orm.public.Student.first({ id: r.studentId });
-        const enrollment = await db.orm.public.Enrollment.where({ courseId: session.courseId, studentId: r.studentId }).first();
+        const enrollment = enrollments.find(e => e.studentId === r.studentId);
         return {
           id: r.id,
           sessionId: r.sessionId,
@@ -146,12 +171,13 @@ router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<voi
     // Sort by serialNumber
     records.sort((a, b) => (a.serialNumber ?? 999) - (b.serialNumber ?? 999));
 
-    res.json({ session, course, records });
+    res.json({ session, course, slot, records });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch session' });
   }
 });
+
 
 // PATCH /api/sessions/:id/records/:studentId  — mark attendance for a student
 router.patch('/:id/records/:studentId', requireAuth, async (req: Request, res: Response): Promise<void> => {
@@ -168,17 +194,26 @@ router.patch('/:id/records/:studentId', requireAuth, async (req: Request, res: R
   try {
     const session = await db.orm.public.AttendanceSession.where({ id: sessionId }).first();
     if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
-    if (session.status === 'FINALIZED') { res.status(400).json({ error: 'Session is finalized' }); return; }
 
     const record = await db.orm.public.AttendanceRecord.where({ sessionId, studentId }).first();
-    if (!record) { res.status(404).json({ error: 'Attendance record not found' }); return; }
-
-    await db.orm.public.AttendanceRecord.where({ sessionId, studentId }).update({
-      status,
-      method: method || null,
-      confidence: confidence ?? null,
-      markedAt: status !== 'NOT_MARKED' ? new Date().toISOString() : null,
-    });
+    
+    if (record) {
+      await db.orm.public.AttendanceRecord.where({ sessionId, studentId }).update({
+        status,
+        method: method || null,
+        confidence: confidence ?? null,
+        markedAt: status !== 'NOT_MARKED' ? new Date().toISOString() : null,
+      });
+    } else {
+      await db.orm.public.AttendanceRecord.create({
+        sessionId,
+        studentId,
+        status,
+        method: method || null,
+        confidence: confidence ?? null,
+        markedAt: status !== 'NOT_MARKED' ? new Date().toISOString() : null,
+      });
+    }
 
     res.json({ message: 'Attendance marked', status });
   } catch (err) {
@@ -197,18 +232,45 @@ router.post('/:id/finalize', requireAuth, async (req: Request, res: Response): P
     if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
     if (session.status === 'FINALIZED') { res.status(400).json({ error: 'Already finalized' }); return; }
 
-    // Mark all NOT_MARKED students as ABSENT before finalizing
-    const notMarkedRecords = await db.orm.public.AttendanceRecord.where({ sessionId: id, status: 'NOT_MARKED' }).all();
-    for (const record of notMarkedRecords) {
-      await db.orm.public.AttendanceRecord.where({ id: record.id }).update({
-        status: 'ABSENT',
-        markedAt: new Date().toISOString(),
-      });
+    // Mark all NOT_MARKED students as ABSENT before finalizing, and create missing ones
+    const enrollments = await db.orm.public.Enrollment.where({ courseId: session.courseId }).all();
+    const existingRecords = await db.orm.public.AttendanceRecord.where({ sessionId: id }).all();
+    
+    let autoAbsents = 0;
+    for (const e of enrollments) {
+      const existing = existingRecords.find(r => r.studentId === e.studentId);
+      if (!existing) {
+        await db.orm.public.AttendanceRecord.create({
+          sessionId: id,
+          studentId: e.studentId,
+          status: 'ABSENT',
+          method: null,
+          confidence: null,
+          markedAt: new Date().toISOString(),
+        });
+        autoAbsents++;
+      } else if (existing.status === 'NOT_MARKED') {
+        await db.orm.public.AttendanceRecord.where({ id: existing.id }).update({
+          status: 'ABSENT',
+          markedAt: new Date().toISOString(),
+        });
+        autoAbsents++;
+      }
     }
 
     await db.orm.public.AttendanceSession.where({ id }).update({
       status: 'FINALIZED',
       finalizedAt: new Date().toISOString(),
+    });
+
+    const teacher = (req as any).user as AuthPayload;
+    await db.orm.public.AuditLog.create({
+      userId: teacher.userId,
+      action: 'SESSION_FINALIZED',
+      entityType: 'AttendanceSession',
+      entityId: id,
+      details: JSON.stringify({ autoAbsents }),
+      ip: req.ip || '',
     });
 
     res.json({ message: 'Session finalized' });

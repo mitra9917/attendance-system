@@ -63,6 +63,44 @@ export function Attendance() {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [finalizeMsg, setFinalizeMsg] = useState('');
   const [isMarkingAllAbsent, setIsMarkingAllAbsent] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Sync and online status effect
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOnline(true);
+      const { syncPendingMarks } = await import('../lib/syncService');
+      const count = await syncPendingMarks();
+      if (count > 0) {
+        // Refresh session to get updated records from server
+        if (session) await loadSession(session.id);
+      }
+      checkPending();
+    };
+    
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // Initial check and sync
+    const checkPending = async () => {
+      const { getPendingMarks } = await import('../lib/offlineQueue');
+      const marks = await getPendingMarks();
+      setPendingCount(marks.length);
+    };
+    checkPending();
+    
+    if (navigator.onLine) {
+      handleOnline();
+    }
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [session?.id]);
 
   useEffect(() => {
     fetchApi('/courses')
@@ -116,18 +154,40 @@ export function Attendance() {
     method: 'MANUAL' | 'FACE' = 'MANUAL',
     confidence?: number,
   ) => {
-    if (!session || session.status === 'FINALIZED') return;
+    if (!session) return;
     setMarkingId(studentId);
     try {
-      await fetchApi(`/sessions/${session.id}/records/${studentId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status, method, confidence: confidence ?? null }),
-      });
-      setRecords(prev => prev.map(r =>
-        r.studentId === studentId
-          ? { ...r, status, method, confidence: confidence ?? null, markedAt: new Date().toISOString() }
-          : r,
-      ));
+      const isOffline = !navigator.onLine;
+
+      if (isOffline) {
+        // Import dynamically to avoid top-level await issues if any
+        const { queueMark } = await import('../lib/offlineQueue');
+        await queueMark({
+          sessionId: session.id,
+          studentId,
+          status,
+          method,
+          confidence: confidence ?? null,
+          markedAt: new Date().toISOString(),
+        });
+        // Update local state immediately
+        setRecords(prev => prev.map(r =>
+          r.studentId === studentId
+            ? { ...r, status, method, confidence: confidence ?? null, markedAt: new Date().toISOString() }
+            : r,
+        ));
+        setPendingCount(prev => prev + 1);
+      } else {
+        await fetchApi(`/sessions/${session.id}/records/${studentId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ status, method, confidence: confidence ?? null }),
+        });
+        setRecords(prev => prev.map(r =>
+          r.studentId === studentId
+            ? { ...r, status, method, confidence: confidence ?? null, markedAt: new Date().toISOString() }
+            : r,
+        ));
+      }
     } catch (err: any) {
       alert(err.message || 'Failed to mark attendance');
     } finally {
@@ -276,6 +336,32 @@ export function Attendance() {
       {finalizeMsg && <div className="success-alert">{finalizeMsg}</div>}
 
       <div className="session-body">
+        {/* Offline & Sync Status Banner */}
+        {(!isOnline || pendingCount > 0) && (
+          <div style={{
+            gridColumn: '1 / -1',
+            padding: '0.75rem 1rem',
+            borderRadius: 'var(--radius-sm)',
+            backgroundColor: isOnline ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+            border: `1px solid ${isOnline ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '1rem',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: isOnline ? 'var(--success)' : 'var(--danger)' }}>
+              {!isOnline ? <XCircle size={18} /> : <CheckCircle2 size={18} />}
+              <strong>{!isOnline ? 'You are offline.' : 'Back online.'}</strong>
+              <span>Attendance marks will be saved locally.</span>
+            </div>
+            {pendingCount > 0 && (
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                {pendingCount} mark(s) pending sync...
+              </span>
+            )}
+          </div>
+        )}
+
         {/* ── Left: Student Attendance Grid ── */}
         <div className="attendance-panel">
           {/* Summary stats */}
@@ -305,7 +391,7 @@ export function Attendance() {
           )}
 
           {/* Mark all absent shortcut */}
-          {!isFinalized && unmarkedCount > 0 && (
+          {unmarkedCount > 0 && (
             <div style={{ marginBottom: '0.75rem', textAlign: 'right' }}>
               <button
                 className="btn btn-sm btn-secondary"
@@ -359,30 +445,24 @@ export function Attendance() {
                     </div>
                   </div>
 
-                  {!isFinalized ? (
-                    <div className="att-buttons">
-                      <button
-                        className={`btn btn-sm ${r.status === 'PRESENT' ? 'btn-success' : 'btn-secondary'}`}
-                        onClick={() => markAttendance(r.studentId, r.status === 'PRESENT' ? 'NOT_MARKED' : 'PRESENT', 'MANUAL')}
-                        disabled={markingId === r.studentId}
-                        title={r.status === 'PRESENT' ? 'Undo Present' : 'Mark Present'}
-                      >
-                        <CheckCircle2 size={15} />
-                      </button>
-                      <button
-                        className={`btn btn-sm ${r.status === 'ABSENT' ? 'btn-danger' : 'btn-secondary'}`}
-                        onClick={() => markAttendance(r.studentId, r.status === 'ABSENT' ? 'NOT_MARKED' : 'ABSENT', 'MANUAL')}
-                        disabled={markingId === r.studentId}
-                        title={r.status === 'ABSENT' ? 'Undo Absent' : 'Mark Absent'}
-                      >
-                        <XCircle size={15} />
-                      </button>
-                    </div>
-                  ) : (
-                    <span className={`badge ${r.status === 'PRESENT' ? 'badge-success' : r.status === 'ABSENT' ? 'badge-danger' : 'badge-neutral'}`}>
-                      {r.status === 'NOT_MARKED' ? 'N/M' : r.status}
-                    </span>
-                  )}
+                  <div className="att-buttons">
+                    <button
+                      className={`btn btn-sm ${r.status === 'PRESENT' ? 'btn-success' : 'btn-secondary'}`}
+                      onClick={() => markAttendance(r.studentId, r.status === 'PRESENT' ? 'NOT_MARKED' : 'PRESENT', 'MANUAL')}
+                      disabled={markingId === r.studentId}
+                      title={r.status === 'PRESENT' ? 'Undo Present' : 'Mark Present'}
+                    >
+                      <CheckCircle2 size={15} />
+                    </button>
+                    <button
+                      className={`btn btn-sm ${r.status === 'ABSENT' ? 'btn-danger' : 'btn-secondary'}`}
+                      onClick={() => markAttendance(r.studentId, r.status === 'ABSENT' ? 'NOT_MARKED' : 'ABSENT', 'MANUAL')}
+                      disabled={markingId === r.studentId}
+                      title={r.status === 'ABSENT' ? 'Undo Absent' : 'Mark Absent'}
+                    >
+                      <XCircle size={15} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
