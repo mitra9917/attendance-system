@@ -1,18 +1,32 @@
 # Smart Attendance System
 
-A full-stack attendance management system built with React, Express, Prisma 8, and PostgreSQL.
+A full-stack, monorepo-based smart attendance management system built with **React**, **Express**, **Prisma 8**, **PostgreSQL**, and **face-api.js** (for facial recognition).
 
-## Prerequisites
+---
 
-- **Node.js** (v18 or higher recommended)
-- **PostgreSQL** (Installed and running on your local machine)
+## ?? Architecture & Tech Stack
+
+This project is a monorepo using npm workspaces:
+
+- `apps/web`: The frontend, built with React, Vite, and Zustand. Uses `face-api.js` for client-side face detection and embeddings.
+- `apps/api`: The backend, built with Node.js, Express, and Prisma 8 ORM.
+- `packages/shared`: Shared TypeScript types and constants (like time slots and domain models) used by both the frontend and backend.
+
+---
+
+## ?? Local Development Setup Guide
+
+If you are a new developer joining the project, follow these steps exactly to get your local environment running.
+
+### 1. Prerequisites
+
+- **Node.js**: v18 or higher (LTS recommended)
+- **PostgreSQL**: A cloud database on **Neon** (https://neon.tech/)
 - **Git**
 
-## Installation & Setup Guide
+### 2. Clone and Install Dependencies
 
-### 1. Clone and Install Dependencies
-
-Clone the repository and install the monorepo dependencies from the root directory:
+Clone the repository and install all dependencies from the root directory. This will automatically install packages for the web, api, and shared workspaces.
 
 ```bash
 git clone https://github.com/tanmayskotadia/attendance-system.git
@@ -20,56 +34,114 @@ cd attendance-system
 npm install
 ```
 
-### 2. Database Configuration
+### 3. Database & Environment Configuration
 
-1. Make sure your local PostgreSQL server is running.
-2. Create a database for the project (e.g., `attendance_db`).
-3. Navigate to the API directory:
+The backend connects to your Neon PostgreSQL database.
+
+1. Create a free PostgreSQL database on [Neon](https://neon.tech/).
+2. Copy your connection string from the Neon dashboard (it should look like `postgresql://<user>:<password>@ep-something.neon.tech/dbname?sslmode=require`).
+3. Navigate to the API folder:
    ```bash
    cd apps/api
    ```
-4. Create an `.env` file based on your local setup:
+4. Create an `.env` file:
    ```bash
+   # Linux/macOS
+   touch .env
+   
+   # Windows (PowerShell)
    New-Item .env -ItemType File
    ```
-5. Open `.env` and configure your database URL and JWT secret:
+5. Add your configuration to `.env`, using the Neon connection string:
    ```env
    PORT=3000
-   DATABASE_URL="postgresql://<user>:<password>@localhost:5432/attendance_db?schema=public"
+   DATABASE_URL="your-neon-connection-string-here"
    JWT_SECRET="your-super-secret-jwt-key"
    ```
 
-### 3. Initialize Prisma ORM
+### 4. Initialize the Database (Prisma 8)
 
-The backend uses Prisma 8. From the `apps/api` directory, initialize the database:
+This project uses **Prisma 8** (currently in release candidate), which has a slightly different CLI than older versions of Prisma.
 
-1. Generate the Prisma client artifacts:
+From the `apps/api` directory, run:
+
+1. **Update the database schema:**
    ```bash
-   npm run contract:emit
+   npx prisma db update
    ```
-2. Apply the schema to your PostgreSQL database:
-   ```bash
-   npx prisma db update --confirm attendance_db
-   ```
-3. Return to the project root directory:
+   *(If prompted to confirm, type the database name as requested).*
+
+2. Return to the root directory:
    ```bash
    cd ../..
    ```
 
-### 4. Run the Application
+### 5. Start the Development Servers
 
-Start both the frontend (Vite) and backend (Express) development servers simultaneously from the **root directory**:
+You can run both the frontend and backend simultaneously from the **root directory**:
 
 ```bash
 npm run dev
 ```
 
-- **Frontend UI:** [http://localhost:5173](http://localhost:5173)
+- **Frontend:** [http://localhost:5173](http://localhost:5173)
 - **Backend API:** [http://localhost:3000](http://localhost:3000)
 
-### 5. Initial Usage
+### 6. First Login & Registration
 
-1. Open the frontend URL in your browser.
-2. Use the application's interface to register a new user (the first user should be given an admin role, or you can register normally).
-3. Under the **Register** section, you can start managing **Time Slots**, **Courses**, and **Students**.
-4. Use the **Daily Attendance** page to track and mark student attendance for active sessions.
+There are no hardcoded default admin credentials. To create your first admin user:
+
+1. While the servers are running, open a new terminal.
+2. Send a POST request to the local API to register an admin user:
+
+   **Linux/macOS (cURL):**
+   ```bash
+   curl -X POST http://localhost:3000/api/auth/register \
+     -H "Content-Type: application/json" \
+     -d '{"email":"admin@domain.com","password":"YourPassword123","name":"Admin User","role":"ADMIN"}'
+   ```
+
+   **Windows (PowerShell):**
+   ```powershell
+   Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/auth/register" -ContentType "application/json" -Body '{"email":"admin@domain.com","password":"YourPassword123","name":"Admin User","role":"ADMIN"}'
+   ```
+3. You can now log into the frontend at [http://localhost:5173](http://localhost:5173) using the email and password you just created.
+
+---
+
+## ?? Production Deployment Guide
+
+This project is configured to be easily deployed to **Vercel** (Frontend) and **Render** (Backend), using a **Neon** PostgreSQL database.
+
+### 1. Database (Neon)
+1. Create a new PostgreSQL database on Neon.
+2. Get your connection string (e.g., `postgresql://user:pass@ep-cool-db.neon.tech/dbname?sslmode=require`).
+3. Set this connection string in your local `apps/api/.env` file.
+4. Run `npx prisma db update` from `apps/api` to push the tables to Neon.
+
+### 2. Backend API (Render)
+Create a new **Web Service** on Render connected to your GitHub repo.
+- **Root Directory:** *(leave blank)*
+- **Build Command:** `npm install --include=dev && npm run build -w @attendance/shared && npm run build -w @attendance/api`
+- **Start Command:** `npm run start -w @attendance/api`
+- **Environment Variables:**
+  - `DATABASE_URL`: Your Neon connection string
+  - `JWT_SECRET`: A secure random string
+
+*Note your live Render URL once deployed (e.g., `https://attendance-api-xyz.onrender.com`).*
+
+### 3. Frontend (Vercel)
+Create a new project on Vercel connected to your GitHub repo. The project includes a `vercel.json` file that automatically configures the monorepo build, but ensure the following:
+- **Framework Preset:** Vite (or Other)
+- **Environment Variables:**
+  - `VITE_API_URL`: Your Render backend URL **with `/api` appended** (e.g., `https://attendance-api-xyz.onrender.com/api`)
+
+Once deployed, the frontend will communicate with the live backend, which stores data in your cloud database.
+
+---
+
+## ?? Face Recognition Note
+
+The frontend uses `face-api.js` for facial recognition. 
+- The model weights are stored in `apps/web/public/models/`.
+- For the camera and facial recognition to work properly in production, the site **must** be served over HTTPS. Vercel handles this automatically.
