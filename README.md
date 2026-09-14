@@ -76,7 +76,15 @@ From the `apps/api` directory, run:
    cd ../..
    ```
 
-### 5. Start the Development Servers
+### 5. Build the Shared Package
+
+The monorepo has a shared TypeScript package (`packages/shared`) used by both frontend and backend. Build it once before starting dev (this also runs automatically after `npm install`):
+
+```bash
+npm run build -w @attendance/shared
+```
+
+### 6. Start the Development Servers
 
 You can run both the frontend and backend simultaneously from the **root directory**:
 
@@ -87,7 +95,7 @@ npm run dev
 - **Frontend:** [http://localhost:5173](http://localhost:5173)
 - **Backend API:** [http://localhost:3000](http://localhost:3000)
 
-### 6. First Login & Registration
+### 7. First Login & Registration
 
 There are no hardcoded default admin credentials. To create your first admin user:
 
@@ -98,14 +106,23 @@ There are no hardcoded default admin credentials. To create your first admin use
    ```bash
    curl -X POST http://localhost:3000/api/auth/register \
      -H "Content-Type: application/json" \
-     -d '{"email":"admin@domain.com","password":"YourPassword123","name":"Admin User","role":"ADMIN"}'
+     -d '{"email":"admin@example.com","password":"admin123","name":"Admin User","role":"ADMIN"}'
    ```
 
    **Windows (PowerShell):**
    ```powershell
-   Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/auth/register" -ContentType "application/json" -Body '{"email":"admin@domain.com","password":"YourPassword123","name":"Admin User","role":"ADMIN"}'
+   Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/auth/register" -ContentType "application/json" -Body '{"email":"admin@example.com","password":"admin123","name":"Admin User","role":"ADMIN"}'
    ```
 3. You can now log into the frontend at [http://localhost:5173](http://localhost:5173) using the email and password you just created.
+
+**Default admin credentials (production):**
+
+| Field | Value |
+|-------|-------|
+| Email | `admin@example.com` |
+| Password | `admin123` |
+
+**Production app:** [https://attendance-system-api-omega.vercel.app/](https://attendance-system-api-omega.vercel.app/)
 
 ---
 
