@@ -218,4 +218,41 @@ router.post('/:id/finalize', requireAuth, async (req: Request, res: Response): P
   }
 });
 
+// GET /api/sessions/:id/faces  — fetch all active FaceTemplates for students in this session
+router.get('/:id/faces', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  try {
+    const session = await db.orm.public.AttendanceSession.where({ id }).first();
+    if (!session) { res.status(404).json({ error: 'Session not found' }); return; }
+
+    // Find all enrolled students
+    const enrollments = await db.orm.public.Enrollment.where({ courseId: session.courseId }).all();
+    const studentIds = enrollments.map(e => e.studentId);
+
+    if (studentIds.length === 0) {
+      res.json([]);
+      return;
+    }
+
+    // Fetch active FaceTemplates for these students
+    const templates = [];
+    for (const sId of studentIds) {
+      const sTemplates = await db.orm.public.FaceTemplate.where({ studentId: sId, isActive: true }).all();
+      templates.push(...sTemplates);
+    }
+
+    // Format the response
+    const result = templates.map(row => ({
+      id: row.id,
+      studentId: row.studentId,
+      embedding: typeof row.embedding === 'string' ? JSON.parse(row.embedding) : row.embedding
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch session faces' });
+  }
+});
+
 export default router;

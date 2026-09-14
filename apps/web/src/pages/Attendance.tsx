@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { fetchApi } from '../lib/api';
-import { CalendarDays, ChevronRight, CheckCircle2, XCircle, Lock, Clock } from 'lucide-react';
+import { CalendarDays, ChevronRight, CheckCircle2, XCircle, Lock, Clock, Scan, UserCheck } from 'lucide-react';
 import { getBlocksForPattern } from '@attendance/shared';
 import type { DayOfWeek } from '@attendance/shared';
+import { FaceScanner } from '../components/FaceScanner';
 import './Attendance.css';
 
 interface Course {
@@ -19,6 +20,7 @@ interface AttendanceRecord {
   studentId: number;
   status: 'PRESENT' | 'ABSENT' | 'NOT_MARKED';
   method: string | null;
+  confidence: number | null;
   serialNumber: number | null;
   markedAt: string | null;
   student: { id: number; name: string; registrationNumber: string; photoUrl?: string } | null;
@@ -35,13 +37,13 @@ interface Session {
 type Step = 'setup' | 'session';
 
 const JS_DAY_TO_TIMETABLE: Record<number, DayOfWeek | null> = {
-  0: null,       // SUN — no classes
+  0: null,
   1: 'MON',
   2: 'TUE',
   3: 'WED',
   4: 'THU',
   5: 'FRI',
-  6: null,       // SAT — no classes
+  6: null,
 };
 
 export function Attendance() {
@@ -60,6 +62,7 @@ export function Attendance() {
   const [markingId, setMarkingId] = useState<number | null>(null);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [finalizeMsg, setFinalizeMsg] = useState('');
+  const [isMarkingAllAbsent, setIsMarkingAllAbsent] = useState(false);
 
   useEffect(() => {
     fetchApi('/courses')
@@ -70,13 +73,11 @@ export function Attendance() {
       .catch(console.error);
   }, []);
 
-  // Compute the day of the selected date
   const activeCourse = courses.find(c => String(c.id) === selectedCourseId);
   const dayOfWeek: DayOfWeek | null = selectedDate
     ? (JS_DAY_TO_TIMETABLE[new Date(selectedDate + 'T00:00:00').getDay()] ?? null)
     : null;
 
-  // Find all blocks scheduled for this course on the selected day
   const activeBlocks = activeCourse && dayOfWeek
     ? getBlocksForPattern(activeCourse.slotPattern).filter(b => b.day === dayOfWeek)
     : [];
@@ -89,27 +90,15 @@ export function Attendance() {
   };
 
   const handleStartSession = async () => {
-    if (!selectedCourseId || !selectedDate) {
-      setSetupError('Please fill in all fields.');
-      return;
-    }
-    if (activeBlocks.length === 0) {
-      setSetupError('This course has no classes scheduled on the selected date.');
-      return;
-    }
-
+    if (!selectedCourseId || !selectedDate) { setSetupError('Please fill in all fields.'); return; }
+    if (activeBlocks.length === 0) { setSetupError('This course has no classes scheduled on the selected date.'); return; }
     setIsStarting(true);
     setSetupError('');
     try {
-      // Use the first block's code as the session's slotCode
       const slotCode = activeBlocks[0].code;
       const data = await fetchApi('/sessions', {
         method: 'POST',
-        body: JSON.stringify({
-          courseId: parseInt(selectedCourseId),
-          slotCode,
-          date: selectedDate,
-        }),
+        body: JSON.stringify({ courseId: parseInt(selectedCourseId), slotCode, date: selectedDate }),
       });
       await loadSession(data.session.id);
       setStep('session');
@@ -120,16 +109,24 @@ export function Attendance() {
     }
   };
 
-  const markAttendance = async (studentId: number, status: 'PRESENT' | 'ABSENT' | 'NOT_MARKED') => {
+  // Unified mark function — method can be 'MANUAL' or 'FACE'
+  const markAttendance = async (
+    studentId: number,
+    status: 'PRESENT' | 'ABSENT' | 'NOT_MARKED',
+    method: 'MANUAL' | 'FACE' = 'MANUAL',
+    confidence?: number,
+  ) => {
     if (!session || session.status === 'FINALIZED') return;
     setMarkingId(studentId);
     try {
       await fetchApi(`/sessions/${session.id}/records/${studentId}`, {
         method: 'PATCH',
-        body: JSON.stringify({ status, method: 'MANUAL' }),
+        body: JSON.stringify({ status, method, confidence: confidence ?? null }),
       });
       setRecords(prev => prev.map(r =>
-        r.studentId === studentId ? { ...r, status, method: 'MANUAL', markedAt: new Date().toISOString() } : r
+        r.studentId === studentId
+          ? { ...r, status, method, confidence: confidence ?? null, markedAt: new Date().toISOString() }
+          : r,
       ));
     } catch (err: any) {
       alert(err.message || 'Failed to mark attendance');
@@ -138,13 +135,30 @@ export function Attendance() {
     }
   };
 
+  // Mark all still-unmarked students as ABSENT at once
+  const handleMarkAllAbsent = async () => {
+    if (!session) return;
+    const unmarked = records.filter(r => r.status === 'NOT_MARKED');
+    if (unmarked.length === 0) return;
+    if (!confirm(`Mark ${unmarked.length} unmarked student(s) as ABSENT?`)) return;
+    setIsMarkingAllAbsent(true);
+    for (const r of unmarked) {
+      await markAttendance(r.studentId, 'ABSENT', 'MANUAL');
+    }
+    setIsMarkingAllAbsent(false);
+  };
+
   const handleFinalize = async () => {
     if (!session) return;
-    if (!confirm('Finalize this session? No further changes will be allowed.')) return;
+    if (!confirm('Finalize this session? All unmarked students will be marked ABSENT. No further changes will be allowed.')) return;
     setIsFinalizing(true);
     try {
       await fetchApi(`/sessions/${session.id}/finalize`, { method: 'POST' });
       setSession(prev => prev ? { ...prev, status: 'FINALIZED' } : prev);
+      // Reflect finalization locally — NOT_MARKED → ABSENT
+      setRecords(prev => prev.map(r =>
+        r.status === 'NOT_MARKED' ? { ...r, status: 'ABSENT', markedAt: new Date().toISOString() } : r,
+      ));
       setFinalizeMsg('Session finalized successfully!');
     } catch (err: any) {
       alert(err.message || 'Failed to finalize session');
@@ -154,10 +168,13 @@ export function Attendance() {
   };
 
   const presentCount = records.filter(r => r.status === 'PRESENT').length;
-  const absentCount = records.filter(r => r.status === 'ABSENT').length;
+  const absentCount  = records.filter(r => r.status === 'ABSENT').length;
   const unmarkedCount = records.filter(r => r.status === 'NOT_MARKED').length;
-  const isFinalized = session?.status === 'FINALIZED';
+  const totalCount   = records.length;
+  const markedPct    = totalCount > 0 ? Math.round(((presentCount + absentCount) / totalCount) * 100) : 0;
+  const isFinalized  = session?.status === 'FINALIZED';
 
+  // ── Setup Screen ──
   if (step === 'setup') {
     return (
       <div className="attendance-setup">
@@ -169,45 +186,29 @@ export function Attendance() {
         </div>
 
         <div className="setup-card glass-panel">
-          <div className="setup-icon">
-            <CalendarDays size={32} />
-          </div>
+          <div className="setup-icon"><CalendarDays size={32} /></div>
           <h2>Start Attendance Session</h2>
 
           {setupError && <div className="error-alert">{setupError}</div>}
 
           {courses.length === 0 ? (
-            <div className="empty-hint">
-              No courses found. <a href="/register">Create a course first →</a>
-            </div>
+            <div className="empty-hint">No courses found. <a href="/register">Create a course first →</a></div>
           ) : (
             <div className="setup-form">
               <div className="form-group">
                 <label htmlFor="att-date">Date</label>
-                <input
-                  id="att-date"
-                  type="date"
-                  value={selectedDate}
-                  onChange={e => setSelectedDate(e.target.value)}
-                />
+                <input id="att-date" type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} />
               </div>
 
               <div className="form-group">
                 <label htmlFor="att-course">Course</label>
-                <select
-                  id="att-course"
-                  value={selectedCourseId}
-                  onChange={e => setSelectedCourseId(e.target.value)}
-                >
+                <select id="att-course" value={selectedCourseId} onChange={e => setSelectedCourseId(e.target.value)}>
                   {courses.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.code} — {c.name} ({c.slotPattern})
-                    </option>
+                    <option key={c.id} value={c.id}>{c.code} — {c.name} ({c.slotPattern})</option>
                   ))}
                 </select>
               </div>
 
-              {/* Show schedule info for selected date */}
               {activeCourse && dayOfWeek && (
                 <div className="form-group">
                   <label>Classes on {dayOfWeek} ({selectedDate})</label>
@@ -243,8 +244,10 @@ export function Attendance() {
     );
   }
 
-  // ── Step 2: Session Screen ──
-  const sessionBlock = course && session ? getBlocksForPattern(course.slotPattern).find(b => b.code === session.slotCode) : null;
+  // ── Session Screen ──
+  const sessionBlock = course && session
+    ? getBlocksForPattern(course.slotPattern).find(b => b.code === session.slotCode)
+    : null;
 
   return (
     <div className="attendance-session">
@@ -275,11 +278,46 @@ export function Attendance() {
       <div className="session-body">
         {/* ── Left: Student Attendance Grid ── */}
         <div className="attendance-panel">
+          {/* Summary stats */}
           <div className="att-summary">
             <div className="att-stat present"><span>{presentCount}</span> Present</div>
             <div className="att-stat absent"><span>{absentCount}</span> Absent</div>
             <div className="att-stat unmarked"><span>{unmarkedCount}</span> Not Marked</div>
           </div>
+
+          {/* Progress bar */}
+          {totalCount > 0 && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+                <span>{presentCount + absentCount} of {totalCount} marked</span>
+                <span>{markedPct}%</span>
+              </div>
+              <div style={{ height: 6, background: 'var(--border-color)', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${markedPct}%`,
+                  background: markedPct === 100 ? 'var(--success)' : 'var(--primary)',
+                  borderRadius: 3,
+                  transition: 'width 0.4s ease',
+                }} />
+              </div>
+            </div>
+          )}
+
+          {/* Mark all absent shortcut */}
+          {!isFinalized && unmarkedCount > 0 && (
+            <div style={{ marginBottom: '0.75rem', textAlign: 'right' }}>
+              <button
+                className="btn btn-sm btn-secondary"
+                onClick={handleMarkAllAbsent}
+                disabled={isMarkingAllAbsent}
+                style={{ fontSize: '0.78rem' }}
+              >
+                <XCircle size={13} />
+                {isMarkingAllAbsent ? 'Marking...' : `Mark ${unmarkedCount} remaining as Absent`}
+              </button>
+            </div>
+          )}
 
           {records.length === 0 ? (
             <div className="empty-hint" style={{ padding: '2rem', textAlign: 'center' }}>
@@ -289,29 +327,53 @@ export function Attendance() {
             <div className="student-grid">
               {records.map((r) => (
                 <div key={r.studentId} className={`student-card glass-panel status-${r.status.toLowerCase()}`}>
-                  <div className="student-avatar">
-                    {r.student?.name.charAt(0).toUpperCase() ?? '?'}
+                  {/* Avatar: show photo if available, else initial */}
+                  <div className="student-avatar" style={{ overflow: 'hidden', flexShrink: 0 }}>
+                    {r.student?.photoUrl ? (
+                      <img
+                        src={r.student.photoUrl}
+                        alt={r.student.name}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }}
+                      />
+                    ) : (
+                      r.student?.name.charAt(0).toUpperCase() ?? '?'
+                    )}
                   </div>
+
                   <div className="student-info">
                     <span className="student-name">{r.student?.name ?? 'Unknown'}</span>
                     <span className="student-reg">{r.student?.registrationNumber}</span>
-                    {r.serialNumber && <span className="student-serial">#{r.serialNumber}</span>}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.1rem' }}>
+                      {r.serialNumber && <span className="student-serial">#{r.serialNumber}</span>}
+                      {/* Method badge */}
+                      {r.method === 'FACE' && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: '0.65rem', background: 'rgba(99,102,241,0.15)', color: 'var(--primary)', padding: '1px 6px', borderRadius: 10, fontWeight: 600 }}>
+                          <Scan size={9} /> FACE
+                        </span>
+                      )}
+                      {r.method === 'MANUAL' && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: '0.65rem', background: 'rgba(148,163,184,0.15)', color: 'var(--text-muted)', padding: '1px 6px', borderRadius: 10, fontWeight: 600 }}>
+                          <UserCheck size={9} /> MANUAL
+                        </span>
+                      )}
+                    </div>
                   </div>
+
                   {!isFinalized ? (
                     <div className="att-buttons">
                       <button
                         className={`btn btn-sm ${r.status === 'PRESENT' ? 'btn-success' : 'btn-secondary'}`}
-                        onClick={() => markAttendance(r.studentId, r.status === 'PRESENT' ? 'NOT_MARKED' : 'PRESENT')}
+                        onClick={() => markAttendance(r.studentId, r.status === 'PRESENT' ? 'NOT_MARKED' : 'PRESENT', 'MANUAL')}
                         disabled={markingId === r.studentId}
-                        title="Mark Present"
+                        title={r.status === 'PRESENT' ? 'Undo Present' : 'Mark Present'}
                       >
                         <CheckCircle2 size={15} />
                       </button>
                       <button
                         className={`btn btn-sm ${r.status === 'ABSENT' ? 'btn-danger' : 'btn-secondary'}`}
-                        onClick={() => markAttendance(r.studentId, r.status === 'ABSENT' ? 'NOT_MARKED' : 'ABSENT')}
+                        onClick={() => markAttendance(r.studentId, r.status === 'ABSENT' ? 'NOT_MARKED' : 'ABSENT', 'MANUAL')}
                         disabled={markingId === r.studentId}
-                        title="Mark Absent"
+                        title={r.status === 'ABSENT' ? 'Undo Absent' : 'Mark Absent'}
                       >
                         <XCircle size={15} />
                       </button>
@@ -327,16 +389,15 @@ export function Attendance() {
           )}
         </div>
 
-        {/* ── Right: Camera Placeholder ── */}
+        {/* ── Right: Face Scanner ── */}
         <div className="camera-panel glass-panel">
-          <div className="camera-placeholder">
-            <div className="camera-icon">📷</div>
-            <h3>Face Recognition</h3>
-            <p>Camera & face recognition will be integrated in a future phase.</p>
-            <div className="camera-hint">
-              For now, use the <strong>Present / Absent</strong> buttons to mark attendance manually.
-            </div>
-          </div>
+          {session && (
+            <FaceScanner
+              sessionId={session.id}
+              records={records}
+              onMatch={(studentId) => markAttendance(studentId, 'PRESENT', 'FACE')}
+            />
+          )}
         </div>
       </div>
     </div>

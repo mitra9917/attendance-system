@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, Camera } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { fetchApi } from '../lib/api';
 import { Modal } from '../components/Modal';
 
@@ -17,6 +18,8 @@ export function Students() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   
+  const navigate = useNavigate();
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   
@@ -136,6 +139,9 @@ export function Students() {
                   </td>
                   <td style={{ textAlign: 'right' }}>
                     <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                      <button className="icon-btn" onClick={() => navigate(`/students/${student.id}/enroll`)} title="Enroll Face" style={{ color: 'var(--primary)' }}>
+                        <Camera size={16} />
+                      </button>
                       <button className="icon-btn" onClick={() => handleOpenModal(student)} title="Edit">
                         <Edit2 size={16} />
                       </button>

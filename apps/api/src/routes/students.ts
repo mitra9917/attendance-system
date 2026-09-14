@@ -32,7 +32,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<voi
 // If a student with the same registration number already exists, we REUSE that record
 // (same student can enroll in multiple courses). Returns 201 for new, 200 for existing.
 router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void> => {
-  const { registrationNumber, name, email } = req.body;
+  const { registrationNumber, name, email, photoUrl } = req.body;
   if (!registrationNumber || !name) {
     res.status(400).json({ error: 'registrationNumber and name are required' });
     return;
@@ -53,6 +53,7 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
       registrationNumber: normalizedRegNo,
       name: name.trim(),
       email: email?.trim() || null,
+      photoUrl: photoUrl || null,
       isActive: true,
     });
     res.status(201).json(student);
@@ -97,6 +98,42 @@ router.delete('/:id', requireAdmin, async (req: Request, res: Response): Promise
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to delete student' });
+  }
+});
+
+// POST /api/students/:id/faces  (Admin only)
+router.post('/:id/faces', requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const { embeddings, modelName, modelVersion } = req.body;
+
+  if (!embeddings || !Array.isArray(embeddings) || embeddings.length === 0) {
+    res.status(400).json({ error: 'embeddings array is required' });
+    return;
+  }
+
+  try {
+    // Verify student exists
+    const student = await db.orm.public.Student.where({ id, isActive: true }).first();
+    if (!student) { res.status(404).json({ error: 'Student not found' }); return; }
+
+    // Delete existing active templates for a clean start
+    await db.orm.public.FaceTemplate.where({ studentId: id }).delete();
+
+    // Insert new templates
+    for (const embedding of embeddings) {
+      await db.orm.public.FaceTemplate.create({
+        studentId: id,
+        embedding: JSON.stringify(embedding), // Ensure it's stored as valid JSON
+        modelName: modelName || 'face-api.js-resnet34',
+        modelVersion: modelVersion || '0.22.2',
+        isActive: true,
+      });
+    }
+
+    res.status(201).json({ message: 'Face templates saved successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save face templates' });
   }
 });
 

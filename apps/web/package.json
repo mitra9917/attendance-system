@@ -12,6 +12,7 @@
   "dependencies": {
     "@attendance/shared": "*",
     "clsx": "^2.1.1",
+    "face-api.js": "^0.22.2",
     "lucide-react": "^1.45.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import * as faceapi from 'face-api.js';
 import { fetchApi } from '../lib/api';
 import { BookOpen, UserPlus, GraduationCap, List, Trash2, FlaskConical, BookMarked, Calendar, Upload, Camera, X, RefreshCw } from 'lucide-react';
 import { getBlocksForPattern, THEORY_PATTERNS, LAB_PATTERNS } from '@attendance/shared';
@@ -204,6 +205,56 @@ function RegisterStudent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Auto face-embedding extraction from uploaded photo
+  const [faceEmbedding, setFaceEmbedding] = useState<number[] | null>(null);
+  const [faceStatus, setFaceStatus] = useState<'idle' | 'processing' | 'found' | 'not-found'>('idle');
+  const modelsLoadedRef = useRef(false);
+
+  const ensureModels = async () => {
+    if (modelsLoadedRef.current) return;
+    await Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri('/models'),
+      faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+      faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
+    ]);
+    modelsLoadedRef.current = true;
+  };
+
+  const extractEmbedding = async (dataUrl: string) => {
+    setFaceStatus('processing');
+    setFaceEmbedding(null);
+    try {
+      await ensureModels();
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+      });
+      const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+      if (detection) {
+        setFaceEmbedding(Array.from(detection.descriptor));
+        setFaceStatus('found');
+      } else {
+        setFaceStatus('not-found');
+      }
+    } catch (err) {
+      console.warn('Face extraction failed:', err);
+      setFaceStatus('not-found');
+    }
+  };
+
+  // Trigger embedding extraction whenever a photo is set
+  useEffect(() => {
+    if (photoUrl) {
+      extractEmbedding(photoUrl);
+    } else {
+      setFaceStatus('idle');
+      setFaceEmbedding(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [photoUrl]);
+
   // Stop camera stream when mode changes away from camera
   const stopCamera = () => {
     if (streamRef.current) {
@@ -292,6 +343,25 @@ function RegisterStudent() {
 
       const isReused = !!student._reused;
 
+      // Auto-save face embedding extracted from the uploaded photo
+      let faceAutoEnrolled = false;
+      if (faceEmbedding) {
+        try {
+          await fetchApi(`/students/${student.id}/faces`, {
+            method: 'POST',
+            body: JSON.stringify({
+              embeddings: [faceEmbedding],
+              modelName: 'face-api.js-resnet34',
+              modelVersion: '0.22.2',
+            }),
+          });
+          faceAutoEnrolled = true;
+        } catch (faceErr) {
+          // Non-fatal: face enrollment failure should not block registration
+          console.warn('Auto face enrollment failed:', faceErr);
+        }
+      }
+
       if (enrollInCourse && selectedCourseId) {
         try {
           await fetchApi('/enrollments', {
@@ -301,7 +371,8 @@ function RegisterStudent() {
           const course = courses.find(c => String(c.id) === selectedCourseId);
           const courseName = course ? `${course.code} — ${course.name}` : selectedCourseId;
           const prefix = isReused ? `Existing student "${student.name}"` : `Student "${student.name}"`;
-          setMessage({ type: 'success', text: `${prefix} enrolled in ${courseName}!` });
+          const faceNote = faceAutoEnrolled ? ' · Face ID enrolled ✓' : (photoUrl && faceStatus === 'not-found' ? ' · No face detected in photo' : '');
+          setMessage({ type: 'success', text: `${prefix} enrolled in ${courseName}!${faceNote}` });
         } catch (err: any) {
           if (err.message?.includes('already enrolled')) {
             setMessage({ type: 'error', text: `"${student.name}" (${normalizedRegNo}) is already enrolled in this course.` });
@@ -310,10 +381,12 @@ function RegisterStudent() {
           }
         }
       } else {
-        setMessage({ type: 'success', text: `Student "${student.name}" registered successfully!` });
+        const faceNote = faceAutoEnrolled ? ' · Face ID enrolled ✓' : (photoUrl && faceStatus === 'not-found' ? ' · No face detected in photo' : '');
+        setMessage({ type: 'success', text: `Student "${student.name}" registered successfully!${faceNote}` });
       }
 
       setName(''); setRegNo(''); setEmail(''); setPhotoUrl(''); setPhotoMode('none');
+      setFaceEmbedding(null); setFaceStatus('idle');
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message || 'Registration failed' });
     } finally {
@@ -354,13 +427,31 @@ function RegisterStudent() {
         <div className="form-group">
           <label>Student Photo (Optional)</label>
 
-          {/* Preview */}
+          {/* Preview + face detection status */}
           {photoUrl && (
             <div className="photo-preview-wrap">
               <img src={photoUrl} alt="Student" className="photo-preview" />
               <button type="button" className="btn btn-sm btn-danger photo-clear-btn" onClick={clearPhoto} title="Remove photo">
                 <X size={14} /> Remove
               </button>
+              {/* Face detection status badge */}
+              <div style={{ marginTop: '0.5rem' }}>
+                {faceStatus === 'processing' && (
+                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    🔍 Scanning for face...
+                  </span>
+                )}
+                {faceStatus === 'found' && (
+                  <span style={{ fontSize: '0.8rem', color: '#22c55e', fontWeight: 600 }}>
+                    ✅ Face detected — will auto-enroll for attendance
+                  </span>
+                )}
+                {faceStatus === 'not-found' && (
+                  <span style={{ fontSize: '0.8rem', color: '#f59e0b', fontWeight: 600 }}>
+                    ⚠️ No face detected — manual enrollment required later
+                  </span>
+                )}
+              </div>
             </div>
           )}
 
@@ -395,6 +486,12 @@ function RegisterStudent() {
                     onChange={e => {
                       const file = e.target.files?.[0];
                       if (!file) return;
+                      // Guard: reject files over 4 MB before base64 encode (server limit is 5 MB)
+                      if (file.size > 4 * 1024 * 1024) {
+                        setMessage({ type: 'error', text: 'Photo is too large. Please choose an image under 4 MB.' });
+                        e.target.value = '';
+                        return;
+                      }
                       const reader = new FileReader();
                       reader.onload = ev => setPhotoUrl(ev.target?.result as string);
                       reader.readAsDataURL(file);

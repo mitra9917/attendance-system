@@ -66,8 +66,10 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
       }
     }
 
-    // Compute next serialNumber within the course
-    const serialNumber = existingEnrollmentsInCourse.length + 1;
+    // Compute next serialNumber within the course using MAX to avoid conflicts when
+    // students have been deleted (count would be less than the highest existing serial number)
+    const maxSerial = existingEnrollmentsInCourse.reduce((max, e) => Math.max(max, e.serialNumber ?? 0), 0);
+    const serialNumber = maxSerial + 1;
 
     const enrollment = await db.orm.public.Enrollment.create({ courseId, studentId, serialNumber });
     res.status(201).json(enrollment);

@@ -7,6 +7,9 @@ import { Dashboard } from './pages/Dashboard';
 import { Attendance } from './pages/Attendance';
 import { Register } from './pages/Register';
 import { View } from './pages/View';
+import { Students } from './pages/Students';
+import { FaceEnrollment } from './pages/FaceEnrollment';
+import CVPoc from './pages/CVPoc';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -19,12 +22,15 @@ export function Router() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/poc" element={<CVPoc />} />
 
         <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/attendance" element={<Attendance />} />
           <Route path="/register" element={<Register />} />
           <Route path="/view" element={<View />} />
+          <Route path="/students" element={<Students />} />
+          <Route path="/students/:id/enroll" element={<FaceEnrollment />} />
         </Route>
 
         {/* Catch-all */}
