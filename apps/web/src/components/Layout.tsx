@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
-  LogOut, LayoutDashboard, ClipboardList, UserPlus, Menu, X, Eye, GraduationCap
+  LogOut, LayoutDashboard, ClipboardList, UserPlus, Menu, X, Eye
 } from 'lucide-react';
 import './Layout.css';
 

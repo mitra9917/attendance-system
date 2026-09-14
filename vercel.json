@@ -1,0 +1,6 @@
+{
+  "buildCommand": "npm run build -w @attendance/shared && npm run build -w @attendance/web",
+  "outputDirectory": "apps/web/dist",
+  "installCommand": "npm install --include=dev",
+  "framework": null
+}
