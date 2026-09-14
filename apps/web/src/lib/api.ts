@@ -13,7 +13,8 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}) {
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`/api${endpoint}`, {
+  const baseUrl = import.meta.env.VITE_API_URL || '/api';
+  const response = await fetch(`${baseUrl}${endpoint}`, {
     ...options,
     headers,
   });
