@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchApi } from '../lib/api';
-import { CalendarDays, ChevronRight, CheckCircle2, XCircle, Lock, Clock, Scan, UserCheck } from 'lucide-react';
+import { CalendarDays, ChevronRight, CheckCircle2, XCircle, Lock, Clock, Scan, UserCheck, LayoutList, LayoutGrid } from 'lucide-react';
 import { getBlocksForPattern } from '@attendance/shared';
 import type { DayOfWeek } from '@attendance/shared';
 import { FaceScanner } from '../components/FaceScanner';
@@ -35,6 +35,7 @@ interface Session {
 }
 
 type Step = 'setup' | 'session';
+type StudentListView = 'detail' | 'grid';
 
 const JS_DAY_TO_TIMETABLE: Record<number, DayOfWeek | null> = {
   0: null,
@@ -65,6 +66,7 @@ export function Attendance() {
   const [isMarkingAllAbsent, setIsMarkingAllAbsent] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
+  const [studentListView, setStudentListView] = useState<StudentListView>('detail');
 
   // Sync and online status effect
   useEffect(() => {
@@ -195,6 +197,17 @@ export function Attendance() {
     }
   };
 
+  const cycleGridStatus = (status: AttendanceRecord['status']): AttendanceRecord['status'] => {
+    if (status === 'NOT_MARKED') return 'PRESENT';
+    if (status === 'PRESENT') return 'ABSENT';
+    return 'NOT_MARKED';
+  };
+
+  const handleGridCellTap = (record: AttendanceRecord) => {
+    if (session?.status === 'FINALIZED') return;
+    markAttendance(record.studentId, cycleGridStatus(record.status), 'MANUAL');
+  };
+
   // Mark all still-unmarked students as ABSENT at once
   const handleMarkAllAbsent = async () => {
     if (!session) return;
@@ -233,6 +246,7 @@ export function Attendance() {
   const totalCount   = records.length;
   const markedPct    = totalCount > 0 ? Math.round(((presentCount + absentCount) / totalCount) * 100) : 0;
   const isFinalized  = session?.status === 'FINALIZED';
+  const gridRecords  = [...records].sort((a, b) => (a.serialNumber ?? 0) - (b.serialNumber ?? 0));
 
   // ── Setup Screen ──
   if (step === 'setup') {
@@ -362,42 +376,77 @@ export function Attendance() {
           </div>
         )}
 
-        {/* ── Left: Student Attendance Grid ── */}
-        <div className="attendance-panel">
-          {/* Summary stats */}
+        {/* Summary stats + progress bar */}
+        <div className="att-session-top">
           <div className="att-summary">
             <div className="att-stat present"><span>{presentCount}</span> Present</div>
             <div className="att-stat absent"><span>{absentCount}</span> Absent</div>
             <div className="att-stat unmarked"><span>{unmarkedCount}</span> Not Marked</div>
           </div>
 
-          {/* Progress bar */}
           {totalCount > 0 && (
-            <div style={{ marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>
+            <div className="att-progress">
+              <div className="att-progress-labels">
                 <span>{presentCount + absentCount} of {totalCount} marked</span>
                 <span>{markedPct}%</span>
               </div>
-              <div style={{ height: 6, background: 'var(--border-color)', borderRadius: 3, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%',
-                  width: `${markedPct}%`,
-                  background: markedPct === 100 ? 'var(--success)' : 'var(--primary)',
-                  borderRadius: 3,
-                  transition: 'width 0.4s ease',
-                }} />
+              <div className="att-progress-track">
+                <div
+                  className="att-progress-fill"
+                  style={{
+                    width: `${markedPct}%`,
+                    background: markedPct === 100 ? 'var(--success)' : 'var(--primary)',
+                  }}
+                />
               </div>
             </div>
           )}
+        </div>
 
-          {/* Mark all absent shortcut */}
-          {unmarkedCount > 0 && (
-            <div style={{ marginBottom: '0.75rem', textAlign: 'right' }}>
+        {/* Face scanner — between progress bar and student list on mobile */}
+        <div className="camera-panel glass-panel">
+          {session && (
+            <FaceScanner
+              sessionId={session.id}
+              records={records}
+              onMatch={(studentId) => markAttendance(studentId, 'PRESENT', 'FACE')}
+            />
+          )}
+        </div>
+
+        {/* Student list */}
+        <div className={`att-session-students view-${studentListView}`}>
+          {records.length > 0 && (
+            <div className="att-view-toggle" role="tablist" aria-label="Student list view">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={studentListView === 'detail'}
+                className={`att-view-toggle-btn ${studentListView === 'detail' ? 'active' : ''}`}
+                onClick={() => setStudentListView('detail')}
+              >
+                <LayoutList size={15} />
+                Detail
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={studentListView === 'grid'}
+                className={`att-view-toggle-btn ${studentListView === 'grid' ? 'active' : ''}`}
+                onClick={() => setStudentListView('grid')}
+              >
+                <LayoutGrid size={15} />
+                Grid
+              </button>
+            </div>
+          )}
+
+          {unmarkedCount > 0 && studentListView === 'detail' && (
+            <div className="mark-all-absent">
               <button
                 className="btn btn-sm btn-secondary"
                 onClick={handleMarkAllAbsent}
                 disabled={isMarkingAllAbsent}
-                style={{ fontSize: '0.78rem' }}
               >
                 <XCircle size={13} />
                 {isMarkingAllAbsent ? 'Marking...' : `Mark ${unmarkedCount} remaining as Absent`}
@@ -410,10 +459,10 @@ export function Attendance() {
               No students enrolled in this course yet.
             </div>
           ) : (
+            <>
             <div className="student-grid">
               {records.map((r) => (
                 <div key={r.studentId} className={`student-card glass-panel status-${r.status.toLowerCase()}`}>
-                  {/* Avatar: show photo if available, else initial */}
                   <div className="student-avatar" style={{ overflow: 'hidden', flexShrink: 0 }}>
                     {r.student?.photoUrl ? (
                       <img
@@ -431,7 +480,6 @@ export function Attendance() {
                     <span className="student-reg">{r.student?.registrationNumber}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.1rem' }}>
                       {r.serialNumber && <span className="student-serial">#{r.serialNumber}</span>}
-                      {/* Method badge */}
                       {r.method === 'FACE' && (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: '0.65rem', background: 'rgba(99,102,241,0.15)', color: 'var(--primary)', padding: '1px 6px', borderRadius: 10, fontWeight: 600 }}>
                           <Scan size={9} /> FACE
@@ -466,17 +514,23 @@ export function Attendance() {
                 </div>
               ))}
             </div>
-          )}
-        </div>
 
-        {/* ── Right: Face Scanner ── */}
-        <div className="camera-panel glass-panel">
-          {session && (
-            <FaceScanner
-              sessionId={session.id}
-              records={records}
-              onMatch={(studentId) => markAttendance(studentId, 'PRESENT', 'FACE')}
-            />
+            <div className="attendance-seat-grid" aria-label="Student seat grid">
+              {gridRecords.map((r) => (
+                <button
+                  key={r.studentId}
+                  type="button"
+                  className={`seat-cell status-${r.status.toLowerCase()}${markingId === r.studentId ? ' is-marking' : ''}`}
+                  title={`${r.student?.name ?? 'Student'} — tap to cycle attendance`}
+                  disabled={isFinalized || markingId === r.studentId}
+                  onClick={() => handleGridCellTap(r)}
+                >
+                  #{r.serialNumber ?? '?'}
+                </button>
+              ))}
+            </div>
+            <p className="seat-grid-hint">Tap a cell to cycle: Not marked → Present → Absent</p>
+            </>
           )}
         </div>
       </div>

@@ -48,9 +48,16 @@
 .session-body {
   display: grid;
   grid-template-columns: 1fr 320px;
+  grid-template-areas:
+    "top    camera"
+    "students camera";
   gap: 1.5rem;
   align-items: start;
 }
+
+.att-session-top { grid-area: top; }
+.att-session-students { grid-area: students; }
+.camera-panel { grid-area: camera; }
 
 /* Summary counts */
 .att-summary {
@@ -59,6 +66,32 @@
   margin-bottom: 1.25rem;
   flex-wrap: wrap;
 }
+
+.att-progress { margin-bottom: 0; }
+.att-progress-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+.att-progress-track {
+  height: 6px;
+  background: var(--border-color);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.att-progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.mark-all-absent {
+  margin-bottom: 0.75rem;
+  text-align: right;
+}
+.mark-all-absent .btn { font-size: 0.78rem; }
 
 .att-stat {
   padding: 0.5rem 1.25rem;
@@ -74,11 +107,117 @@
 .att-stat.absent  { background: rgba(239,68,68,0.1);  color: var(--danger);  border: 1px solid rgba(239,68,68,0.2);  }
 .att-stat.unmarked{ background: rgba(148,163,184,0.08); color: var(--text-secondary); border: 1px solid var(--border-color); }
 
-/* Student Grid */
+/* Mobile view toggle (detail vs grid) */
+.att-view-toggle {
+  display: none;
+  margin-bottom: 0.75rem;
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  gap: 3px;
+}
+
+.att-view-toggle-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: calc(var(--radius-md) - 2px);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.att-view-toggle-btn.active {
+  background: rgba(99, 102, 241, 0.18);
+  color: var(--primary);
+}
+
+.att-view-toggle-btn:not(.active):hover {
+  color: var(--text-secondary);
+}
+
+/* Student list — detail view */
 .student-grid {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+/* Student list — grid view (mobile only): 5 cells per row, full width */
+.attendance-seat-grid {
+  display: none;
+  width: 100%;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-rows: auto;
+  gap: 6px;
+}
+
+.seat-cell {
+  aspect-ratio: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-family: monospace;
+  background: rgba(148, 163, 184, 0.08);
+  border: 2px solid var(--border-color);
+  color: var(--text-secondary);
+  min-width: 0;
+  min-height: 52px;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.seat-cell:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.seat-cell:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.seat-cell.is-marking {
+  opacity: 0.5;
+}
+
+.seat-grid-hint {
+  display: none;
+  margin: 0.5rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.seat-cell.status-present {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: var(--success);
+}
+
+.seat-cell.status-absent {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.3);
+  color: var(--danger);
+}
+
+.seat-cell.status-not_marked {
+  background: rgba(148, 163, 184, 0.06);
+  border-color: var(--border-color);
+  color: var(--text-muted);
 }
 
 .student-card {
@@ -145,8 +284,24 @@
 
 /* ── Responsive ── */
 @media (max-width: 900px) {
-  .session-body { grid-template-columns: 1fr; }
-  .camera-panel { position: static; }
+  .session-body {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "top"
+      "camera"
+      "students";
+  }
+  .camera-panel { position: static; margin-bottom: 0.5rem; }
+
+  .att-view-toggle { display: flex; }
+
+  .att-session-students.view-detail .student-grid { display: flex; }
+  .att-session-students.view-detail .attendance-seat-grid { display: none; }
+
+  .att-session-students.view-grid .student-grid { display: none; }
+  .att-session-students.view-grid .attendance-seat-grid { display: grid; }
+  .att-session-students.view-grid .seat-grid-hint { display: block; }
+  .att-session-students.view-grid .mark-all-absent { display: none; }
 }
 @media (max-width: 480px) {
   .att-buttons { flex-direction: column; }
