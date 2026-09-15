@@ -7,9 +7,10 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev -w @attendance/api\" \"npm run dev -w @attendance/web\"",
+    "dev": "npm run build -w @attendance/shared && concurrently \"npm run dev -w @attendance/api\" \"npm run dev -w @attendance/web\"",
     "build": "npm run build --workspaces",
-    "test": "npm run test --workspaces"
+    "test": "npm run test --workspaces",
+    "postinstall": "npm run build -w @attendance/shared"
   },
   "devDependencies": {
     "concurrently": "^10.0.5"

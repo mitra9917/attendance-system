@@ -50,7 +50,7 @@ export function Login() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@attendance.local"
+              placeholder="admin@example.com"
               required
               disabled={isLoading}
             />
