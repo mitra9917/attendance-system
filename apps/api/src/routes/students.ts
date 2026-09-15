@@ -84,7 +84,7 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
 // PUT /api/students/:id  (Admin only)
 router.put('/:id', requireAdmin, async (req: Request, res: Response): Promise<void> => {
   const id = parseInt(req.params.id);
-  const { name, email } = req.body;
+  const { name, email, photoUrl } = req.body;
   try {
     const existing = await db.orm.public.Student.where({ id, isActive: true }).first();
     if (!existing) { res.status(404).json({ error: 'Student not found' }); return; }
@@ -92,6 +92,7 @@ router.put('/:id', requireAdmin, async (req: Request, res: Response): Promise<vo
     const updates: Record<string, unknown> = {};
     if (name) updates.name = name;
     if (email !== undefined) updates.email = email || null;
+    if (photoUrl !== undefined) updates.photoUrl = photoUrl || null;
 
     await db.orm.public.Student.where({ id }).update(updates);
     res.json({ message: 'Student updated' });

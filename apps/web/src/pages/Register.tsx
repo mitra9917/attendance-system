@@ -17,6 +17,7 @@ import {
   X,
   RefreshCw,
   Edit2,
+  ImagePlus,
 } from "lucide-react";
 import {
   getBlocksForPattern,
@@ -294,6 +295,7 @@ function RegisterStudent() {
   const streamRef = useRef<MediaStream | null>(null);
   const [enrollInCourse, setEnrollInCourse] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState("");
+  const [serialNumber, setSerialNumber] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -455,6 +457,17 @@ function RegisterStudent() {
       .catch(console.error);
   }, []);
 
+  // Suggest the next available serial number for the selected course
+  useEffect(() => {
+    if (!enrollInCourse || !selectedCourseId) return;
+    fetchApi(`/enrollments?courseId=${selectedCourseId}`)
+      .then((enrollments: { serialNumber: number }[]) => {
+        const maxSerial = enrollments.reduce((max, e) => Math.max(max, e.serialNumber ?? 0), 0);
+        setSerialNumber(String(maxSerial + 1));
+      })
+      .catch(console.error);
+  }, [enrollInCourse, selectedCourseId]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -498,12 +511,19 @@ function RegisterStudent() {
       }
 
       if (enrollInCourse && selectedCourseId) {
+        const parsedSerial = parseInt(serialNumber, 10);
+        if (!Number.isInteger(parsedSerial) || parsedSerial < 1) {
+          setMessage({ type: "error", text: "Serial number must be a positive whole number." });
+          setIsSubmitting(false);
+          return;
+        }
         try {
-          await fetchApi("/enrollments", {
+          const enrollment = await fetchApi("/enrollments", {
             method: "POST",
             body: JSON.stringify({
               studentId: student.id,
               courseId: parseInt(selectedCourseId),
+              serialNumber: parsedSerial,
             }),
           });
           const course = courses.find((c) => String(c.id) === selectedCourseId);
@@ -520,7 +540,7 @@ function RegisterStudent() {
               : "";
           setMessage({
             type: "success",
-            text: `${prefix} enrolled in ${courseName}!${faceNote}`,
+            text: `${prefix} enrolled in ${courseName} as #${enrollment.serialNumber}!${faceNote}`,
           });
         } catch (err: any) {
           if (err.message?.includes("already enrolled")) {
@@ -528,6 +548,8 @@ function RegisterStudent() {
               type: "error",
               text: `"${student.name}" (${normalizedRegNo}) is already enrolled in this course.`,
             });
+          } else if (err.message?.includes("Serial number")) {
+            setMessage({ type: "error", text: err.message });
           } else {
             throw err;
           }
@@ -547,6 +569,7 @@ function RegisterStudent() {
       setName("");
       setRegNo("");
       setEmail("");
+      setSerialNumber("");
       setPhotoUrl("");
       setPhotoMode("none");
       setFaceEmbeddings([]);
@@ -797,18 +820,37 @@ function RegisterStudent() {
                   <a href="/register">Create a course first.</a>
                 </p>
               ) : (
-                <select
-                  id="enroll-course"
-                  value={selectedCourseId}
-                  onChange={(e) => setSelectedCourseId(e.target.value)}
-                >
-                  {courses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.code} — {c.name} ({c.type === "LAB" ? "🧪 " : ""}
-                      {c.slotPattern})
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <select
+                    id="enroll-course"
+                    value={selectedCourseId}
+                    onChange={(e) => setSelectedCourseId(e.target.value)}
+                  >
+                    {courses.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.code} — {c.name} ({c.type === "LAB" ? "🧪 " : ""}
+                        {c.slotPattern})
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="form-group" style={{ marginTop: "0.75rem" }}>
+                    <label htmlFor="stu-serial">Serial Number *</label>
+                    <input
+                      id="stu-serial"
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={serialNumber}
+                      onChange={(e) => setSerialNumber(e.target.value)}
+                      placeholder="e.g. 1"
+                      required
+                    />
+                    <p className="field-hint">
+                      This # is unique in the course and appears in attendance grid cells and CSV export.
+                    </p>
+                  </div>
+                </>
               )}
             </div>
           )}
@@ -988,6 +1030,177 @@ function ManageStudents() {
   const [editEmail, setEditEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Add photo modal state
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [photoStudent, setPhotoStudent] = useState<Student | null>(null);
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [photoMode, setPhotoMode] = useState<"none" | "upload" | "camera">("none");
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const [isSavingPhoto, setIsSavingPhoto] = useState(false);
+  const [photoMessage, setPhotoMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [faceEmbeddings, setFaceEmbeddings] = useState<number[][]>([]);
+  const [faceStatus, setFaceStatus] = useState<"idle" | "processing" | "found" | "not-found">("idle");
+  const photoVideoRef = useRef<HTMLVideoElement>(null);
+  const photoCanvasRef = useRef<HTMLCanvasElement>(null);
+  const photoStreamRef = useRef<MediaStream | null>(null);
+  const photoModelsLoadedRef = useRef(false);
+
+  const stopPhotoCamera = () => {
+    if (photoStreamRef.current) {
+      photoStreamRef.current.getTracks().forEach((t) => t.stop());
+      photoStreamRef.current = null;
+    }
+    setCameraActive(false);
+    setCameraError("");
+  };
+
+  const ensurePhotoModels = async () => {
+    if (photoModelsLoadedRef.current) return;
+    await Promise.all([
+      faceapi.nets.ssdMobilenetv1.loadFromUri("/models"),
+      faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
+      faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
+    ]);
+    photoModelsLoadedRef.current = true;
+  };
+
+  const extractPhotoEmbedding = async (dataUrl: string) => {
+    setFaceStatus("processing");
+    setFaceEmbeddings([]);
+    try {
+      await ensurePhotoModels();
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+      });
+      const detection = await faceapi
+        .detectSingleFace(img)
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+      if (detection && detection.detection.score > 0.85) {
+        setFaceEmbeddings([Array.from(detection.descriptor)]);
+        setFaceStatus("found");
+      } else {
+        setFaceStatus("not-found");
+      }
+    } catch {
+      setFaceStatus("not-found");
+    }
+  };
+
+  const startPhotoCamera = async () => {
+    setCameraError("");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: 640, height: 480 },
+      });
+      photoStreamRef.current = stream;
+      if (photoVideoRef.current) {
+        photoVideoRef.current.srcObject = stream;
+        photoVideoRef.current.play();
+      }
+      setCameraActive(true);
+    } catch {
+      setCameraError("Camera access denied or not available.");
+    }
+  };
+
+  const snapPhotoForStudent = async () => {
+    if (!photoVideoRef.current || !photoCanvasRef.current) return;
+    const video = photoVideoRef.current;
+    const canvas = photoCanvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d")!.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    setPhotoUrl(dataUrl);
+    stopPhotoCamera();
+    setPhotoMode("upload");
+    await extractPhotoEmbedding(dataUrl);
+  };
+
+  const openPhotoModal = (student: Student) => {
+    setPhotoStudent(student);
+    setPhotoUrl("");
+    setPhotoMode("none");
+    setPhotoMessage(null);
+    setFaceEmbeddings([]);
+    setFaceStatus("idle");
+    stopPhotoCamera();
+    setIsPhotoModalOpen(true);
+  };
+
+  const closePhotoModal = () => {
+    stopPhotoCamera();
+    setIsPhotoModalOpen(false);
+    setPhotoStudent(null);
+    setPhotoUrl("");
+    setPhotoMode("none");
+    setPhotoMessage(null);
+    setFaceEmbeddings([]);
+    setFaceStatus("idle");
+  };
+
+  const handlePhotoModeChange = (mode: "upload" | "camera") => {
+    stopPhotoCamera();
+    setPhotoUrl("");
+    setFaceEmbeddings([]);
+    setFaceStatus("idle");
+    setPhotoMode(mode);
+    if (mode === "camera") {
+      setTimeout(() => startPhotoCamera(), 100);
+    }
+  };
+
+  const handleSavePhoto = async () => {
+    if (!photoStudent || !photoUrl) return;
+    setIsSavingPhoto(true);
+    setPhotoMessage(null);
+    try {
+      await fetchApi(`/students/${photoStudent.id}`, {
+        method: "PUT",
+        body: JSON.stringify({ photoUrl }),
+      });
+
+      let faceNote = "";
+      if (faceEmbeddings.length > 0) {
+        try {
+          await fetchApi(`/students/${photoStudent.id}/faces`, {
+            method: "POST",
+            body: JSON.stringify({
+              embeddings: faceEmbeddings,
+              modelName: "face-api.js-resnet34",
+              modelVersion: "0.22.2",
+            }),
+          });
+          faceNote = " Face ID enrolled.";
+        } catch {
+          faceNote = " Photo saved, but face enrollment failed.";
+        }
+      } else if (faceStatus === "not-found") {
+        faceNote = " No face detected in photo.";
+      }
+
+      setPhotoMessage({
+        type: "success",
+        text: `Photo saved for ${photoStudent.name}.${faceNote}`,
+      });
+      await loadStudents();
+      setTimeout(() => closePhotoModal(), 1200);
+    } catch (err: any) {
+      setPhotoMessage({ type: "error", text: err.message || "Failed to save photo" });
+    } finally {
+      setIsSavingPhoto(false);
+    }
+  };
+
+  useEffect(() => {
+    return () => stopPhotoCamera();
+  }, []);
+
   const loadStudents = useCallback(async () => {
     setIsLoading(true);
     setError("");
@@ -1079,7 +1292,7 @@ function ManageStudents() {
                 <th>Reg. No.</th>
                 <th>Name / Email</th>
                 <th>Enrolled Courses</th>
-                <th style={{ textAlign: "right", width: "120px" }}>Actions</th>
+                <th style={{ textAlign: "right", width: "160px" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1155,6 +1368,16 @@ function ManageStudents() {
                   </td>
                   <td style={{ textAlign: "right" }}>
                     <div style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}>
+                      {!student.photoUrl && (
+                        <button
+                          className="icon-btn"
+                          onClick={() => openPhotoModal(student)}
+                          title="Add student photo"
+                          style={{ color: "var(--success)" }}
+                        >
+                          <ImagePlus size={16} />
+                        </button>
+                      )}
                       <button
                         className="icon-btn"
                         onClick={() => navigate(`/students/${student.id}/enroll`)}
@@ -1187,6 +1410,170 @@ function ManageStudents() {
           </table>
         </div>
       )}
+
+      {/* Add Photo Modal */}
+      <Modal
+        isOpen={isPhotoModalOpen}
+        onClose={closePhotoModal}
+        title={photoStudent ? `Add Photo — ${photoStudent.name}` : "Add Student Photo"}
+      >
+        {photoMessage && (
+          <div className={photoMessage.type === "success" ? "success-alert" : "error-alert"}>
+            {photoMessage.text}
+          </div>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {photoStudent && (
+            <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-muted)" }}>
+              {photoStudent.registrationNumber}
+              {photoStudent.enrolledCourses?.length
+                ? ` · ${photoStudent.enrolledCourses.map((c) => c.code).join(", ")}`
+                : ""}
+            </p>
+          )}
+
+          {!photoUrl && (
+            <div className="photo-mode-btns">
+              <button
+                type="button"
+                className={`photo-mode-btn ${photoMode === "upload" ? "active" : ""}`}
+                onClick={() => handlePhotoModeChange("upload")}
+              >
+                <Upload size={15} /> Upload File
+              </button>
+              <button
+                type="button"
+                className={`photo-mode-btn ${photoMode === "camera" ? "active" : ""}`}
+                onClick={() => handlePhotoModeChange("camera")}
+              >
+                <Camera size={15} /> Live Camera
+              </button>
+            </div>
+          )}
+
+          {photoUrl && (
+            <div className="photo-preview-wrap">
+              <img src={photoUrl} alt="Student preview" className="photo-preview" />
+              <button
+                type="button"
+                className="btn btn-sm btn-danger photo-clear-btn"
+                onClick={() => {
+                  stopPhotoCamera();
+                  setPhotoUrl("");
+                  setPhotoMode("none");
+                  setFaceEmbeddings([]);
+                  setFaceStatus("idle");
+                }}
+              >
+                <X size={14} /> Remove
+              </button>
+              <div style={{ marginTop: "0.5rem" }}>
+                {faceStatus === "processing" && (
+                  <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                    Scanning for face...
+                  </span>
+                )}
+                {faceStatus === "found" && (
+                  <span style={{ fontSize: "0.8rem", color: "#22c55e", fontWeight: 600 }}>
+                    Face detected — will auto-enroll for attendance
+                  </span>
+                )}
+                {faceStatus === "not-found" && (
+                  <span style={{ fontSize: "0.8rem", color: "#f59e0b", fontWeight: 600 }}>
+                    No face detected — manual face enrollment still available
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {photoMode === "upload" && !photoUrl && (
+            <div className="photo-upload-zone">
+              <input
+                type="file"
+                id="manage-stu-photo-file"
+                accept="image/jpeg,image/png,image/webp"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 4 * 1024 * 1024) {
+                    setPhotoMessage({ type: "error", text: "Photo must be under 4 MB." });
+                    e.target.value = "";
+                    return;
+                  }
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    const dataUrl = ev.target?.result as string;
+                    setPhotoUrl(dataUrl);
+                    extractPhotoEmbedding(dataUrl);
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+              <label htmlFor="manage-stu-photo-file" className="upload-label">
+                <Upload size={28} />
+                <span>Click to select a photo</span>
+                <span className="upload-hint">JPG, PNG, WEBP — max 4 MB</span>
+              </label>
+            </div>
+          )}
+
+          {photoMode === "camera" && !photoUrl && (
+            <div className="camera-zone">
+              {cameraError ? (
+                <div className="error-alert">{cameraError}</div>
+              ) : (
+                <>
+                  <video
+                    ref={photoVideoRef}
+                    className="camera-video"
+                    autoPlay
+                    playsInline
+                    muted
+                  />
+                  <canvas ref={photoCanvasRef} style={{ display: "none" }} />
+                  <div className="camera-actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={snapPhotoForStudent}
+                      disabled={!cameraActive}
+                    >
+                      <Camera size={16} /> Snap Photo
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        stopPhotoCamera();
+                        startPhotoCamera();
+                      }}
+                    >
+                      <RefreshCw size={14} /> Retry
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="modal-form-actions" style={{ display: "flex", justifyContent: "flex-end", gap: "0.75rem" }}>
+            <button type="button" className="btn btn-secondary" onClick={closePhotoModal}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSavePhoto}
+              disabled={!photoUrl || isSavingPhoto}
+            >
+              {isSavingPhoto ? "Saving..." : "Save Photo"}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Edit Student Modal */}
       <Modal
