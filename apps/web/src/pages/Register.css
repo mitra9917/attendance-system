@@ -302,3 +302,49 @@
   .photo-mode-btns { flex-direction: column; }
   .camera-video { max-width: 100%; }
 }
+
+/* Bulk CSV import */
+.field-hint {
+  margin: 0.25rem 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.csv-upload-zone {
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  transition: border-color 0.2s;
+}
+.csv-upload-zone:hover {
+  border-color: var(--accent-primary);
+}
+
+.import-preview {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.import-preview-header {
+  padding: 0.75rem 1rem;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.import-error-list {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.import-results {
+  padding: 0.75rem 1rem;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+}

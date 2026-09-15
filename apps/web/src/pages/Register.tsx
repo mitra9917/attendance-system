@@ -17,7 +17,9 @@ import {
   X,
   RefreshCw,
   Edit2,
+  FileSpreadsheet,
 } from "lucide-react";
+import { parseStudentsCsv, type ParsedStudentRow } from "../lib/importUtils";
 import {
   getBlocksForPattern,
   THEORY_PATTERNS,
@@ -44,7 +46,12 @@ interface Student {
   enrolledCourses?: { id: number; code: string; name: string; type: string }[];
 }
 
-type Tab = "course" | "student" | "manage-courses" | "manage-students";
+type Tab =
+  | "course"
+  | "student"
+  | "bulk-import"
+  | "manage-courses"
+  | "manage-students";
 
 export function Register() {
   const [activeTab, setActiveTab] = useState<Tab>("course");
@@ -72,6 +79,12 @@ export function Register() {
           <UserPlus size={18} /> Register Student
         </button>
         <button
+          className={`tab-btn ${activeTab === "bulk-import" ? "active" : ""}`}
+          onClick={() => setActiveTab("bulk-import")}
+        >
+          <FileSpreadsheet size={18} /> Bulk Import
+        </button>
+        <button
           className={`tab-btn ${activeTab === "manage-courses" ? "active" : ""}`}
           onClick={() => setActiveTab("manage-courses")}
         >
@@ -88,6 +101,7 @@ export function Register() {
       <div className="tab-content">
         {activeTab === "course" && <RegisterCourse />}
         {activeTab === "student" && <RegisterStudent />}
+        {activeTab === "bulk-import" && <BulkImportStudents />}
         {activeTab === "manage-courses" && <ManageCourses />}
         {activeTab === "manage-students" && <ManageStudents />}
       </div>
@@ -822,6 +836,298 @@ function RegisterStudent() {
           {isSubmitting ? "Registering..." : "Register Student"}
         </button>
       </form>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────
+// Bulk Import Students Tab
+// ─────────────────────────────────────────
+interface BulkImportResult {
+  enrolled: number;
+  skipped: number;
+  failed: number;
+  results: {
+    row: number;
+    registrationNumber: string;
+    status: "enrolled" | "skipped" | "error";
+    message?: string;
+  }[];
+}
+
+function BulkImportStudents() {
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [selectedCourseId, setSelectedCourseId] = useState("");
+  const [parsedRows, setParsedRows] = useState<ParsedStudentRow[]>([]);
+  const [parseErrors, setParseErrors] = useState<string[]>([]);
+  const [fileName, setFileName] = useState("");
+  const [isParsing, setIsParsing] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<BulkImportResult | null>(null);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  useEffect(() => {
+    fetchApi("/courses")
+      .then((data) => {
+        setCourses(data);
+        if (data.length > 0) setSelectedCourseId(String(data[0].id));
+      })
+      .catch(console.error);
+  }, []);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setIsParsing(true);
+    setMessage(null);
+    setImportResult(null);
+    setParsedRows([]);
+    setParseErrors([]);
+
+    try {
+      const { rows, errors } = await parseStudentsCsv(file);
+      setFileName(file.name);
+      setParsedRows(rows);
+      setParseErrors(errors);
+      if (rows.length === 0) {
+        setMessage({
+          type: "error",
+          text: errors[0] || "No valid student rows found in the CSV.",
+        });
+      }
+    } catch (err: any) {
+      setFileName("");
+      setMessage({
+        type: "error",
+        text: err.message || "Failed to read CSV file",
+      });
+    } finally {
+      setIsParsing(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!selectedCourseId || parsedRows.length === 0) return;
+
+    setIsImporting(true);
+    setMessage(null);
+    setImportResult(null);
+
+    try {
+      const result = await fetchApi("/enrollments/bulk", {
+        method: "POST",
+        body: JSON.stringify({
+          courseId: parseInt(selectedCourseId),
+          students: parsedRows.map((row) => ({
+            registrationNumber: row.registrationNumber,
+            name: row.name,
+            serialNumber: row.serialNumber,
+          })),
+        }),
+      });
+
+      setImportResult(result);
+      const course = courses.find((c) => String(c.id) === selectedCourseId);
+      const courseLabel = course
+        ? `${course.code} — ${course.name}`
+        : "selected course";
+
+      if (result.failed === 0 && result.enrolled > 0) {
+        setMessage({
+          type: "success",
+          text: `Imported ${result.enrolled} student${result.enrolled === 1 ? "" : "s"} into ${courseLabel}.${result.skipped > 0 ? ` ${result.skipped} skipped (already enrolled).` : ""}`,
+        });
+        setParsedRows([]);
+        setFileName("");
+        setParseErrors([]);
+      } else if (result.enrolled > 0) {
+        setMessage({
+          type: "success",
+          text: `Imported ${result.enrolled} student${result.enrolled === 1 ? "" : "s"}. ${result.failed} failed, ${result.skipped} skipped.`,
+        });
+      } else {
+        setMessage({
+          type: "error",
+          text: `Import completed with no new enrollments. ${result.failed} failed, ${result.skipped} skipped.`,
+        });
+      }
+    } catch (err: any) {
+      setMessage({
+        type: "error",
+        text: err.message || "Bulk import failed",
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const canImport =
+    !!selectedCourseId &&
+    parsedRows.length > 0 &&
+    parseErrors.length === 0 &&
+    !isImporting;
+
+  return (
+    <div className="register-panel glass-panel">
+      <div className="panel-header">
+        <div className="panel-icon">
+          <FileSpreadsheet size={22} />
+        </div>
+        <div>
+          <h2>Bulk Import Students</h2>
+          <p>
+            Select a course and upload a CSV with Reg No, Serial Number, and Name
+            columns
+          </p>
+        </div>
+      </div>
+
+      {message && (
+        <div
+          className={
+            message.type === "success" ? "success-alert" : "error-alert"
+          }
+        >
+          {message.text}
+        </div>
+      )}
+
+      <div className="register-form">
+        <div
+          className="enroll-section glass-panel"
+          style={{
+            background: "rgba(99,102,241,0.05)",
+            border: "1px solid rgba(99,102,241,0.12)",
+            padding: "1rem",
+          }}
+        >
+          <div className="form-group">
+            <label htmlFor="bulk-course">Select Course *</label>
+            {courses.length === 0 ? (
+              <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>
+                No courses available. Create a course first.
+              </p>
+            ) : (
+              <select
+                id="bulk-course"
+                value={selectedCourseId}
+                onChange={(e) => setSelectedCourseId(e.target.value)}
+              >
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code} — {c.name} ({c.type === "LAB" ? "🧪 " : ""}
+                    {c.slotPattern})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>Upload CSV File *</label>
+          <p className="field-hint">
+            Use the same format as attendance export: Reg No, Serial Number (#1,
+            #2…), Name. Status, Method, and Time columns are ignored.
+          </p>
+          <div className="csv-upload-zone">
+            <input
+              id="bulk-csv-file"
+              type="file"
+              accept=".csv,text/csv"
+              style={{ display: "none" }}
+              onChange={handleFileChange}
+              disabled={isParsing || isImporting}
+            />
+            <label htmlFor="bulk-csv-file" className="upload-label">
+              <FileSpreadsheet size={28} />
+              <span>
+                {isParsing
+                  ? "Reading CSV..."
+                  : fileName
+                    ? fileName
+                    : "Click to select a CSV file"}
+              </span>
+              <span className="upload-hint">CSV only</span>
+            </label>
+          </div>
+        </div>
+
+        {parseErrors.length > 0 && (
+          <div className="error-alert">
+            <strong>CSV validation errors:</strong>
+            <ul className="import-error-list">
+              {parseErrors.map((err) => (
+                <li key={err}>{err}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {parsedRows.length > 0 && (
+          <div className="import-preview">
+            <div className="import-preview-header">
+              <span>
+                Preview — {parsedRows.length} student
+                {parsedRows.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Reg No</th>
+                    <th>Serial Number</th>
+                    <th>Name</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsedRows.map((row) => (
+                    <tr key={`${row.registrationNumber}-${row.serialNumber}`}>
+                      <td style={{ fontFamily: "monospace", fontWeight: 600 }}>
+                        {row.registrationNumber}
+                      </td>
+                      <td>#{row.serialNumber}</td>
+                      <td>{row.name}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {importResult && importResult.results.some((r) => r.status === "error") && (
+          <div className="import-results">
+            <strong>Import details:</strong>
+            <ul className="import-error-list">
+              {importResult.results
+                .filter((r) => r.status !== "enrolled")
+                .map((r) => (
+                  <li key={`${r.row}-${r.registrationNumber}`}>
+                    Row {r.row} ({r.registrationNumber}): {r.message || r.status}
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="btn btn-primary submit-btn"
+          onClick={handleImport}
+          disabled={!canImport}
+        >
+          {isImporting
+            ? "Importing..."
+            : `Import ${parsedRows.length > 0 ? parsedRows.length : ""} Student${parsedRows.length === 1 ? "" : "s"}`}
+        </button>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
-  LogOut, LayoutDashboard, ClipboardList, UserPlus, Menu, Eye
+  LogOut, ClipboardList, UserPlus, Menu, Eye
 } from 'lucide-react';
 import './Layout.css';
 
@@ -17,7 +17,6 @@ export function Layout() {
   };
 
   const navItems = [
-    { to: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
     { to: '/attendance', icon: <ClipboardList size={20} />, label: 'Daily Attendance' },
     { to: '/register', icon: <UserPlus size={20} />, label: 'Register' },
     { to: '/view', icon: <Eye size={20} />, label: 'View' },
@@ -55,7 +54,7 @@ export function Layout() {
             <NavLink
               key={item.to}
               to={item.to}
-              end={item.to === '/'}
+              end
               className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
               onClick={closeSidebar}
             >

@@ -37,11 +37,171 @@ router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> 
   }
 });
 
+interface BulkStudentInput {
+  registrationNumber: string;
+  name: string;
+  serialNumber: number;
+}
+
+// POST /api/enrollments/bulk  (Admin) — register and enroll many students in one course
+router.post('/bulk', requireAdmin, async (req: Request, res: Response): Promise<void> => {
+  const { courseId, students } = req.body as {
+    courseId?: number;
+    students?: BulkStudentInput[];
+  };
+
+  if (!courseId || !Array.isArray(students) || students.length === 0) {
+    res.status(400).json({ error: 'courseId and a non-empty students array are required' });
+    return;
+  }
+
+  try {
+    const course = await db.orm.public.Course.where({ id: courseId }).first();
+    if (!course) {
+      res.status(404).json({ error: 'Course not found' });
+      return;
+    }
+
+    const existingEnrollments = await db.orm.public.Enrollment.where({ courseId }).all();
+    const usedSerials = new Set(
+      existingEnrollments.map((e) => e.serialNumber).filter((n): n is number => n != null),
+    );
+
+    const enrolledRegNos = new Set<string>();
+    for (const enrollment of existingEnrollments) {
+      const student = await db.orm.public.Student.where({ id: enrollment.studentId }).first();
+      if (student) enrolledRegNos.add(student.registrationNumber.toUpperCase());
+    }
+
+    type RowResult = {
+      row: number;
+      registrationNumber: string;
+      status: 'enrolled' | 'skipped' | 'error';
+      message?: string;
+    };
+
+    const results: RowResult[] = [];
+    let enrolled = 0;
+    let skipped = 0;
+    let failed = 0;
+
+    for (let i = 0; i < students.length; i++) {
+      const input = students[i];
+      const row = i + 1;
+      const normalizedRegNo = input.registrationNumber?.trim().toUpperCase() ?? '';
+      const name = input.name?.trim() ?? '';
+      const serialNumber = input.serialNumber;
+
+      if (!normalizedRegNo || !name) {
+        failed++;
+        results.push({
+          row,
+          registrationNumber: normalizedRegNo || '?',
+          status: 'error',
+          message: 'Reg No and Name are required',
+        });
+        continue;
+      }
+
+      if (!Number.isInteger(serialNumber) || serialNumber < 1) {
+        failed++;
+        results.push({
+          row,
+          registrationNumber: normalizedRegNo,
+          status: 'error',
+          message: 'Invalid serial number',
+        });
+        continue;
+      }
+
+      if (usedSerials.has(serialNumber)) {
+        failed++;
+        results.push({
+          row,
+          registrationNumber: normalizedRegNo,
+          status: 'error',
+          message: `Serial number #${serialNumber} is already used in this course`,
+        });
+        continue;
+      }
+
+      if (enrolledRegNos.has(normalizedRegNo)) {
+        skipped++;
+        results.push({
+          row,
+          registrationNumber: normalizedRegNo,
+          status: 'skipped',
+          message: 'Already enrolled in this course',
+        });
+        continue;
+      }
+
+      try {
+        let student = await db.orm.public.Student.where({ registrationNumber: normalizedRegNo }).first();
+        if (!student) {
+          student = await db.orm.public.Student.create({
+            registrationNumber: normalizedRegNo,
+            name,
+            email: null,
+            photoUrl: null,
+            isActive: true,
+          });
+        }
+
+        const dupEnrollment = await db.orm.public.Enrollment.where({
+          courseId,
+          studentId: student.id,
+        }).first();
+        if (dupEnrollment) {
+          skipped++;
+          enrolledRegNos.add(normalizedRegNo);
+          results.push({
+            row,
+            registrationNumber: normalizedRegNo,
+            status: 'skipped',
+            message: 'Already enrolled in this course',
+          });
+          continue;
+        }
+
+        await db.orm.public.Enrollment.create({
+          courseId,
+          studentId: student.id,
+          serialNumber,
+        });
+
+        usedSerials.add(serialNumber);
+        enrolledRegNos.add(normalizedRegNo);
+        enrolled++;
+        results.push({
+          row,
+          registrationNumber: normalizedRegNo,
+          status: 'enrolled',
+        });
+      } catch (err) {
+        console.error(err);
+        failed++;
+        results.push({
+          row,
+          registrationNumber: normalizedRegNo,
+          status: 'error',
+          message: 'Failed to enroll student',
+        });
+      }
+    }
+
+    res.json({ enrolled, skipped, failed, results });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Bulk import failed' });
+  }
+});
+
 // POST /api/enrollments  (Admin) — enroll a student in a course
 // A student (by normalized registration number) must be unique within a course,
 // but the same student can be enrolled in multiple different courses.
 router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void> => {
-  const { courseId, studentId } = req.body;
+  const { courseId, studentId, serialNumber: requestedSerial } = req.body;
   if (!courseId || !studentId) {
     res.status(400).json({ error: 'courseId and studentId are required' });
     return;
@@ -66,10 +226,26 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
       }
     }
 
-    // Compute next serialNumber within the course using MAX to avoid conflicts when
-    // students have been deleted (count would be less than the highest existing serial number)
-    const maxSerial = existingEnrollmentsInCourse.reduce((max, e) => Math.max(max, e.serialNumber ?? 0), 0);
-    const serialNumber = maxSerial + 1;
+    const usedSerials = existingEnrollmentsInCourse
+      .map((e) => e.serialNumber)
+      .filter((n): n is number => n != null);
+
+    let serialNumber: number;
+    if (requestedSerial != null) {
+      const parsed = parseInt(String(requestedSerial), 10);
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        res.status(400).json({ error: 'serialNumber must be a positive integer' });
+        return;
+      }
+      if (usedSerials.includes(parsed)) {
+        res.status(409).json({ error: `Serial number #${parsed} is already used in this course` });
+        return;
+      }
+      serialNumber = parsed;
+    } else {
+      const maxSerial = usedSerials.reduce((max, n) => Math.max(max, n), 0);
+      serialNumber = maxSerial + 1;
+    }
 
     const enrollment = await db.orm.public.Enrollment.create({ courseId, studentId, serialNumber });
     res.status(201).json(enrollment);
