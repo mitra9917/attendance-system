@@ -23,7 +23,7 @@ export function Login() {
         body: JSON.stringify({ email, password }),
       });
       login(data.user, data.token);
-      navigate('/');
+      navigate('/attendance');
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
