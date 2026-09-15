@@ -226,24 +226,22 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
       }
     }
 
-    const usedSerials = existingEnrollmentsInCourse
-      .map((e) => e.serialNumber)
-      .filter((n): n is number => n != null);
-
     let serialNumber: number;
-    if (requestedSerial != null) {
+    if (requestedSerial !== undefined && requestedSerial !== null && requestedSerial !== '') {
       const parsed = parseInt(String(requestedSerial), 10);
       if (!Number.isInteger(parsed) || parsed < 1) {
-        res.status(400).json({ error: 'serialNumber must be a positive integer' });
+        res.status(400).json({ error: 'serialNumber must be a positive whole number' });
         return;
       }
-      if (usedSerials.includes(parsed)) {
-        res.status(409).json({ error: `Serial number #${parsed} is already used in this course` });
+      const serialTaken = existingEnrollmentsInCourse.some((e) => e.serialNumber === parsed);
+      if (serialTaken) {
+        res.status(409).json({ error: `Serial number #${parsed} is already assigned in this course` });
         return;
       }
       serialNumber = parsed;
     } else {
-      const maxSerial = usedSerials.reduce((max, n) => Math.max(max, n), 0);
+      // Auto-assign next serial within the course using MAX to avoid gaps after deletions
+      const maxSerial = existingEnrollmentsInCourse.reduce((max, e) => Math.max(max, e.serialNumber ?? 0), 0);
       serialNumber = maxSerial + 1;
     }
 

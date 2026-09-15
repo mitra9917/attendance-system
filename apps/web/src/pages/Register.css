@@ -249,6 +249,13 @@
   font-weight: 400 !important;
 }
 
+.field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
 /* Camera zone */
 .camera-zone {
   display: flex;
