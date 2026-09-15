@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { fetchApi } from '../lib/api';
-import { CalendarDays, ChevronRight, CheckCircle2, XCircle, Lock, Clock, Scan, UserCheck, LayoutList, LayoutGrid } from 'lucide-react';
+import { CalendarDays, ChevronRight, CheckCircle2, XCircle, Clock, Scan, UserCheck, LayoutList, LayoutGrid, Download } from 'lucide-react';
+import { exportToCsv } from '../lib/exportUtils';
 import { getBlocksForPattern } from '@attendance/shared';
 import type { DayOfWeek } from '@attendance/shared';
 import { FaceScanner } from '../components/FaceScanner';
@@ -61,8 +62,6 @@ export function Attendance() {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [course, setCourse] = useState<Course | null>(null);
   const [markingId, setMarkingId] = useState<number | null>(null);
-  const [isFinalizing, setIsFinalizing] = useState(false);
-  const [finalizeMsg, setFinalizeMsg] = useState('');
   const [isMarkingAllAbsent, setIsMarkingAllAbsent] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [pendingCount, setPendingCount] = useState(0);
@@ -221,23 +220,9 @@ export function Attendance() {
     setIsMarkingAllAbsent(false);
   };
 
-  const handleFinalize = async () => {
-    if (!session) return;
-    if (!confirm('Finalize this session? All unmarked students will be marked ABSENT. No further changes will be allowed.')) return;
-    setIsFinalizing(true);
-    try {
-      await fetchApi(`/sessions/${session.id}/finalize`, { method: 'POST' });
-      setSession(prev => prev ? { ...prev, status: 'FINALIZED' } : prev);
-      // Reflect finalization locally — NOT_MARKED → ABSENT
-      setRecords(prev => prev.map(r =>
-        r.status === 'NOT_MARKED' ? { ...r, status: 'ABSENT', markedAt: new Date().toISOString() } : r,
-      ));
-      setFinalizeMsg('Session finalized successfully!');
-    } catch (err: any) {
-      alert(err.message || 'Failed to finalize session');
-    } finally {
-      setIsFinalizing(false);
-    }
+  const handleExportCsv = () => {
+    if (!session || !course || records.length === 0) return;
+    exportToCsv(records, session.date, course.code);
   };
 
   const presentCount = records.filter(r => r.status === 'PRESENT').length;
@@ -338,16 +323,16 @@ export function Attendance() {
         </div>
         <div className="session-actions">
           <button className="btn btn-secondary btn-sm" onClick={() => setStep('setup')}>← Back</button>
-          {!isFinalized && (
-            <button className="btn btn-primary" onClick={handleFinalize} disabled={isFinalizing}>
-              <Lock size={16} />
-              {isFinalizing ? 'Finalizing...' : 'Finalize Session'}
-            </button>
-          )}
+          <button
+            className="btn btn-primary"
+            onClick={handleExportCsv}
+            disabled={records.length === 0}
+          >
+            <Download size={16} />
+            Export CSV
+          </button>
         </div>
       </div>
-
-      {finalizeMsg && <div className="success-alert">{finalizeMsg}</div>}
 
       <div className="session-body">
         {/* Offline & Sync Status Banner */}

@@ -1,15 +1,29 @@
 import Papa from 'papaparse';
 
+export interface AttendanceExportRecord {
+  serialNumber: number | null;
+  status: string;
+  method: string | null;
+  markedAt: string | null;
+  student: {
+    registrationNumber: string;
+    name: string;
+  } | null;
+}
+
 export function exportToCsv(
-  records: any[],
+  records: AttendanceExportRecord[],
   sessionDate: string,
-  courseCode: string
+  courseCode: string,
 ) {
-  const data = records.map(r => ({
+  const sorted = [...records].sort((a, b) => (a.serialNumber ?? 0) - (b.serialNumber ?? 0));
+
+  const data = sorted.map((r) => ({
     'Reg No': r.student?.registrationNumber ?? 'N/A',
+    'Serial Number': r.serialNumber != null ? `#${r.serialNumber}` : 'N/A',
     'Name': r.student?.name ?? 'Unknown',
     'Status': r.status,
-    'Method': r.method || 'N/A',
+    'Method': r.method ?? 'N/A',
     'Time': r.markedAt ? new Date(r.markedAt).toLocaleTimeString() : 'N/A',
   }));
 
