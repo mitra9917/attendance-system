@@ -1,44 +1,105 @@
 /* ── Setup Screen ── */
-.attendance-setup { max-width: 560px; }
-.attendance-setup .page-header { margin-bottom: 2rem; }
+.attendance-setup {
+  max-width: 520px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.attendance-setup .page-header {
+  margin-bottom: 1.75rem;
+  text-align: left;
+}
 
 .setup-card {
-  padding: 2.5rem 2rem;
+  padding: 2.5rem 2.25rem 2rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
-  gap: 1.25rem;
+  gap: 0.5rem;
+}
+
+.setup-card h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0.75rem 0 0.25rem;
 }
 
 .setup-icon {
-  width: 64px; height: 64px;
-  background: rgba(99,102,241,0.15);
-  border-radius: var(--radius-lg);
-  display: flex; align-items: center; justify-content: center;
-  color: #818cf8;
+  width: 56px;
+  height: 56px;
+  background: rgba(31, 92, 58, 0.1);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-primary);
 }
 
 .setup-form {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.125rem;
   text-align: left;
+  margin-top: 1rem;
+}
+
+.setup-form .form-group label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .start-btn {
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
   width: 100%;
-  padding: 0.875rem;
+  padding: 0.9rem 1rem;
   font-size: 1rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
 }
 
 .empty-hint {
   color: var(--text-muted);
   font-size: 0.9rem;
+  padding: 1rem 0;
 }
-.empty-hint a { color: var(--accent-primary); }
+.empty-hint a { color: var(--accent-primary); font-weight: 500; }
+
+.scheduled-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.schedule-slot-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(31, 92, 58, 0.07);
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(31, 92, 58, 0.15);
+  font-size: 0.875rem;
+  color: var(--accent-primary);
+}
+
+.schedule-slot-chip strong { font-weight: 700; }
+.schedule-slot-chip .slot-time { color: var(--text-secondary); font-weight: 400; }
+
+.schedule-empty {
+  background: rgba(31, 92, 58, 0.05);
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(31, 92, 58, 0.1);
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
 
 /* ── Session Screen ── */
 .attendance-session { display: flex; flex-direction: column; gap: 1.5rem; }
@@ -51,7 +112,7 @@
   grid-template-areas:
     "top    camera"
     "students camera";
-  gap: 1.5rem;
+  gap: 1.25rem;
   align-items: start;
 }
 
@@ -59,11 +120,41 @@
 .att-session-students { grid-area: students; }
 .camera-panel { grid-area: camera; }
 
-/* Summary counts */
+.sync-banner {
+  grid-column: 1 / -1;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+.sync-banner--offline {
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.15);
+  color: var(--danger);
+}
+.sync-banner--online {
+  background: rgba(22, 163, 74, 0.08);
+  border: 1px solid rgba(22, 163, 74, 0.15);
+  color: var(--success);
+}
+.sync-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sync-banner-pending {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 .att-summary {
   display: flex;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
   flex-wrap: wrap;
 }
 
@@ -77,7 +168,7 @@
 }
 .att-progress-track {
   height: 6px;
-  background: var(--border-color);
+  background: var(--bg-secondary);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -85,7 +176,9 @@
   height: 100%;
   border-radius: 3px;
   transition: width 0.4s ease;
+  background: var(--accent-primary);
 }
+.att-progress-fill.is-complete { background: var(--success); }
 
 .mark-all-absent {
   margin-bottom: 0.75rem;
@@ -94,28 +187,31 @@
 .mark-all-absent .btn { font-size: 0.78rem; }
 
 .att-stat {
-  padding: 0.5rem 1.25rem;
+  padding: 0.55rem 1.1rem;
   border-radius: var(--radius-md);
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   font-weight: 500;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
 }
-.att-stat span { font-size: 1.4rem; font-weight: 700; }
-.att-stat.present { background: rgba(16,185,129,0.1); color: var(--success); border: 1px solid rgba(16,185,129,0.2); }
-.att-stat.absent  { background: rgba(239,68,68,0.1);  color: var(--danger);  border: 1px solid rgba(239,68,68,0.2);  }
-.att-stat.unmarked{ background: rgba(148,163,184,0.08); color: var(--text-secondary); border: 1px solid var(--border-color); }
+.att-stat span { font-size: 1.35rem; font-weight: 700; }
+.att-stat.present { color: var(--success); border-color: rgba(22, 163, 74, 0.2); background: rgba(22, 163, 74, 0.06); }
+.att-stat.absent  { color: var(--danger);  border-color: rgba(220, 38, 38, 0.2);  background: rgba(220, 38, 38, 0.06);  }
+.att-stat.unmarked{ color: var(--text-secondary); }
 
-/* Mobile view toggle (detail vs grid) */
 .att-view-toggle {
   display: none;
   margin-bottom: 0.75rem;
   padding: 3px;
   border-radius: var(--radius-md);
-  background: var(--bg-card);
+  background: #fff;
   border: 1px solid var(--border-color);
   gap: 3px;
+  box-shadow: var(--shadow-sm);
 }
 
 .att-view-toggle-btn {
@@ -136,22 +232,20 @@
 }
 
 .att-view-toggle-btn.active {
-  background: rgba(99, 102, 241, 0.18);
-  color: var(--primary);
+  background: rgba(31, 92, 58, 0.12);
+  color: var(--accent-primary);
 }
 
 .att-view-toggle-btn:not(.active):hover {
   color: var(--text-secondary);
 }
 
-/* Student list — detail view */
 .student-grid {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-/* Student list — grid view (mobile only): 5 cells per row, full width */
 .attendance-seat-grid {
   display: none;
   width: 100%;
@@ -170,7 +264,7 @@
   font-size: 0.9rem;
   font-weight: 700;
   font-family: monospace;
-  background: rgba(148, 163, 184, 0.08);
+  background: var(--bg-secondary);
   border: 2px solid var(--border-color);
   color: var(--text-secondary);
   min-width: 0;
@@ -181,18 +275,9 @@
   transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
-.seat-cell:active:not(:disabled) {
-  transform: scale(0.96);
-}
-
-.seat-cell:disabled {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.seat-cell.is-marking {
-  opacity: 0.5;
-}
+.seat-cell:active:not(:disabled) { transform: scale(0.96); }
+.seat-cell:disabled { cursor: not-allowed; opacity: 0.7; }
+.seat-cell.is-marking { opacity: 0.5; }
 
 .seat-grid-hint {
   display: none;
@@ -203,19 +288,19 @@
 }
 
 .seat-cell.status-present {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: rgba(16, 185, 129, 0.35);
+  background: rgba(22, 163, 74, 0.12);
+  border-color: rgba(22, 163, 74, 0.3);
   color: var(--success);
 }
 
 .seat-cell.status-absent {
-  background: rgba(239, 68, 68, 0.12);
-  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.25);
   color: var(--danger);
 }
 
 .seat-cell.status-not_marked {
-  background: rgba(148, 163, 184, 0.06);
+  background: var(--bg-secondary);
   border-color: var(--border-color);
   color: var(--text-muted);
 }
@@ -226,9 +311,15 @@
   gap: 1rem;
   padding: 0.875rem 1rem;
   border-radius: var(--radius-md);
-  transition: transform 0.15s;
+  transition: transform 0.15s, box-shadow 0.15s;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
 }
-.student-card:hover { transform: translateX(2px); }
+.student-card:hover {
+  transform: translateX(2px);
+  box-shadow: var(--shadow-md);
+}
 
 .student-card.status-present { border-left: 3px solid var(--success); }
 .student-card.status-absent  { border-left: 3px solid var(--danger);  }
@@ -237,9 +328,10 @@
 .student-avatar {
   width: 40px; height: 40px;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(99,102,241,0.3), rgba(168,85,247,0.2));
+  background: linear-gradient(135deg, rgba(31, 92, 58, 0.2), rgba(45, 122, 80, 0.15));
   display: flex; align-items: center; justify-content: center;
   font-weight: 700; font-size: 1rem; flex-shrink: 0;
+  color: var(--accent-primary);
 }
 
 .student-info {
@@ -259,21 +351,21 @@
 
 .att-buttons { display: flex; gap: 0.375rem; }
 
-/* Camera Panel */
 .camera-panel {
-  padding: 1.5rem;
+  padding: 1.25rem;
   text-align: center;
   position: sticky;
   top: 1rem;
 }
+
 .camera-placeholder {
   display: flex; flex-direction: column; align-items: center;
   gap: 1rem; padding: 1.5rem 0;
 }
 .camera-icon { font-size: 3rem; }
 .camera-hint {
-  background: rgba(99,102,241,0.08);
-  border: 1px solid rgba(99,102,241,0.15);
+  background: rgba(31, 92, 58, 0.06);
+  border: 1px solid rgba(31, 92, 58, 0.12);
   border-radius: var(--radius-sm);
   padding: 0.75rem 1rem;
   font-size: 0.85rem;
@@ -282,7 +374,6 @@
 }
 .camera-hint strong { color: var(--text-primary); }
 
-/* ── Responsive ── */
 @media (max-width: 900px) {
   .session-body {
     grid-template-columns: 1fr;
@@ -292,17 +383,16 @@
       "students";
   }
   .camera-panel { position: static; margin-bottom: 0.5rem; }
-
   .att-view-toggle { display: flex; }
 
   .att-session-students.view-detail .student-grid { display: flex; }
   .att-session-students.view-detail .attendance-seat-grid { display: none; }
-
   .att-session-students.view-grid .student-grid { display: none; }
   .att-session-students.view-grid .attendance-seat-grid { display: grid; }
   .att-session-students.view-grid .seat-grid-hint { display: block; }
   .att-session-students.view-grid .mark-all-absent { display: none; }
 }
+
 @media (max-width: 480px) {
   .att-buttons { flex-direction: column; }
   .setup-card { padding: 1.75rem 1.25rem; }

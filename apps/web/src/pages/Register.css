@@ -1,45 +1,63 @@
-.register-page { display: flex; flex-direction: column; gap: 1.5rem; }
+.register-page { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.register-page .page-header h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+}
 
 /* Tabs */
 .register-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
-  background: var(--bg-surface);
-  padding: 0.4rem;
+  background: #fff;
+  padding: 0.45rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
-  width: fit-content;
+  width: 100%;
+  box-shadow: var(--shadow-sm);
 }
 
 .tab-btn {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.6rem 1.25rem;
+  padding: 0.6rem 1.1rem;
   border-radius: var(--radius-sm);
-  border: none;
+  border: 1px solid transparent;
   background: transparent;
   color: var(--text-secondary);
   font-family: inherit;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
 }
-.tab-btn:hover { color: var(--text-primary); background: var(--bg-surface-hover); }
+.tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+}
 .tab-btn.active {
   background: var(--accent-primary);
   color: white;
-  box-shadow: 0 2px 8px rgba(99,102,241,0.35);
+  border-color: var(--accent-primary);
+  box-shadow: 0 2px 8px rgba(31, 92, 58, 0.2);
 }
+
+.tab-content { margin-top: 0.25rem; }
 
 /* Panel */
 .register-panel {
-  padding: 2rem;
+  padding: 2rem 2.25rem;
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
 }
 
 .panel-header {
@@ -52,14 +70,21 @@
 
 .panel-icon {
   width: 48px; height: 48px;
-  background: rgba(99,102,241,0.12);
-  color: #818cf8;
-  border-radius: var(--radius-md);
+  background: rgba(31, 92, 58, 0.1);
+  color: var(--accent-primary);
+  border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.panel-header h2 { margin-bottom: 0.1rem; font-size: 1.25rem; }
-.panel-header p { font-size: 0.875rem; }
+.panel-header h2 { margin-bottom: 0.15rem; font-size: 1.2rem; font-weight: 700; }
+.panel-header p { font-size: 0.875rem; color: var(--text-muted); }
+
+.enroll-section {
+  background: rgba(31, 92, 58, 0.04);
+  border: 1px solid rgba(31, 92, 58, 0.12);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.15rem;
+}
 
 /* Form */
 .register-form { display: flex; flex-direction: column; gap: 1.125rem; }
@@ -70,7 +95,18 @@
   gap: 1rem;
 }
 
-.submit-btn { margin-top: 0.5rem; align-self: flex-start; padding: 0.75rem 2rem; }
+.submit-btn {
+  margin-top: 0.5rem;
+  align-self: flex-start;
+  padding: 0.8rem 2rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  background-color: var(--accent-cta);
+}
+.submit-btn:hover:not(:disabled) {
+  background-color: var(--accent-cta-hover);
+  box-shadow: 0 4px 16px rgba(109, 144, 120, 0.3);
+}
 
 .checkbox-label {
   display: flex;
@@ -104,7 +140,7 @@
 }
 .type-btn:hover { border-color: var(--primary); color: var(--primary); }
 .type-btn.active {
-  background: rgba(99,102,241,0.15);
+  background: rgba(31, 92, 58,0.15);
   border-color: var(--primary);
   color: var(--primary);
   font-weight: 600;
@@ -112,9 +148,9 @@
 
 /* Schedule Preview */
 .schedule-preview {
-  padding: 1rem;
-  background: rgba(99,102,241,0.04);
-  border: 1px solid rgba(99,102,241,0.18);
+  padding: 1rem 1.15rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
 }
 
@@ -149,7 +185,7 @@
   font-weight: 700;
   font-size: 0.78rem;
   color: var(--primary);
-  background: rgba(99,102,241,0.12);
+  background: rgba(31, 92, 58,0.12);
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
 }
@@ -210,7 +246,7 @@
   color: var(--accent-primary);
 }
 .photo-mode-btn.active {
-  background: rgba(99, 102, 241, 0.12);
+  background: rgba(31, 92, 58, 0.12);
   border-color: var(--accent-primary);
   color: var(--accent-primary);
 }

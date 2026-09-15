@@ -1,0 +1,47 @@
+.face-enroll-page {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.face-enroll-card {
+  padding: 2rem;
+  text-align: center;
+}
+
+.face-enroll-video-wrap {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: #000;
+  margin: 1.5rem 0;
+  border: 2px solid var(--border-color);
+}
+
+.face-enroll-video {
+  width: 100%;
+  max-width: 480px;
+  display: block;
+  margin: 0 auto;
+}
+
+.face-enroll-status {
+  padding: 0.75rem 1rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.face-enroll-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.face-enroll-progress {
+  margin: 1rem 0;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}

@@ -1,11 +1,11 @@
 {
-  "name": "Smart Attendance System",
-  "short_name": "Attendance",
+  "name": "Smart Attendance",
+  "short_name": "Smart Attendance",
   "description": "Face-recognition based classroom attendance system",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f1117",
-  "theme_color": "#4f46e5",
+  "background_color": "#eef4ee",
+  "theme_color": "#1f5c3a",
   "orientation": "portrait-primary",
   "icons": [
     {

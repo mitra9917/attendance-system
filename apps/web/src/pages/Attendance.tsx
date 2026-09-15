@@ -244,7 +244,7 @@ export function Attendance() {
           </div>
         </div>
 
-        <div className="setup-card glass-panel">
+        <div className="setup-card page-card">
           <div className="setup-icon"><CalendarDays size={32} /></div>
           <h2>Start Attendance Session</h2>
 
@@ -274,15 +274,15 @@ export function Attendance() {
                   {activeBlocks.length > 0 ? (
                     <div className="scheduled-blocks">
                       {activeBlocks.map((b, i) => (
-                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(99,102,241,0.08)', padding: '0.6rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(99,102,241,0.2)', fontSize: '0.9rem', color: 'var(--primary)' }}>
+                        <div key={i} className="schedule-slot-chip">
                           <Clock size={15} />
                           <strong>{b.code}</strong>
-                          <span style={{ color: 'var(--text-secondary)' }}>{b.startTime} – {b.endTime}</span>
+                          <span className="slot-time">{b.startTime} – {b.endTime}</span>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div style={{ background: 'var(--bg-card)', padding: '0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                    <div className="schedule-empty">
                       No classes scheduled on {dayOfWeek} for this course.
                     </div>
                   )}
@@ -290,7 +290,7 @@ export function Attendance() {
               )}
 
               <button
-                className="btn btn-primary start-btn"
+                className="btn btn-primary btn-cta start-btn"
                 onClick={handleStartSession}
                 disabled={isStarting || activeBlocks.length === 0}
               >
@@ -337,24 +337,14 @@ export function Attendance() {
       <div className="session-body">
         {/* Offline & Sync Status Banner */}
         {(!isOnline || pendingCount > 0) && (
-          <div style={{
-            gridColumn: '1 / -1',
-            padding: '0.75rem 1rem',
-            borderRadius: 'var(--radius-sm)',
-            backgroundColor: isOnline ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-            border: `1px solid ${isOnline ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: '1rem',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: isOnline ? 'var(--success)' : 'var(--danger)' }}>
+          <div className={`sync-banner ${isOnline ? 'sync-banner--online' : 'sync-banner--offline'}`}>
+            <div className="sync-banner-inner">
               {!isOnline ? <XCircle size={18} /> : <CheckCircle2 size={18} />}
               <strong>{!isOnline ? 'You are offline.' : 'Back online.'}</strong>
               <span>Attendance marks will be saved locally.</span>
             </div>
             {pendingCount > 0 && (
-              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <span className="sync-banner-pending">
                 {pendingCount} mark(s) pending sync...
               </span>
             )}
@@ -377,11 +367,8 @@ export function Attendance() {
               </div>
               <div className="att-progress-track">
                 <div
-                  className="att-progress-fill"
-                  style={{
-                    width: `${markedPct}%`,
-                    background: markedPct === 100 ? 'var(--success)' : 'var(--primary)',
-                  }}
+                  className={`att-progress-fill ${markedPct === 100 ? 'is-complete' : ''}`}
+                  style={{ width: `${markedPct}%` }}
                 />
               </div>
             </div>
@@ -389,7 +376,7 @@ export function Attendance() {
         </div>
 
         {/* Face scanner — between progress bar and student list on mobile */}
-        <div className="camera-panel glass-panel">
+        <div className="camera-panel page-card">
           {session && (
             <FaceScanner
               sessionId={session.id}
@@ -447,7 +434,7 @@ export function Attendance() {
             <>
             <div className="student-grid">
               {records.map((r) => (
-                <div key={r.studentId} className={`student-card glass-panel status-${r.status.toLowerCase()}`}>
+                <div key={r.studentId} className={`student-card status-${r.status.toLowerCase()}`}>
                   <div className="student-avatar" style={{ overflow: 'hidden', flexShrink: 0 }}>
                     {r.student?.photoUrl ? (
                       <img
@@ -466,7 +453,7 @@ export function Attendance() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.1rem' }}>
                       {r.serialNumber && <span className="student-serial">#{r.serialNumber}</span>}
                       {r.method === 'FACE' && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: '0.65rem', background: 'rgba(99,102,241,0.15)', color: 'var(--primary)', padding: '1px 6px', borderRadius: 10, fontWeight: 600 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: '0.65rem', background: 'rgba(31,92,58,0.15)', color: 'var(--primary)', padding: '1px 6px', borderRadius: 10, fontWeight: 600 }}>
                           <Scan size={9} /> FACE
                         </span>
                       )}
