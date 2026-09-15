@@ -47,14 +47,11 @@
   transition: transform 0.3s ease;
 }
 
-.sidebar-close-btn { display: none; }
-
 .sidebar-header {
   padding: 1.25rem 1.25rem 1rem;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   align-items: center;
-  justify-content: space-between;
 }
 
 .logo { display: flex; align-items: center; gap: 0.65rem; }
@@ -169,7 +166,6 @@
 /* ─── Responsive Mobile ─── */
 @media (max-width: 768px) {
   .mobile-topbar { display: flex; }
-  .sidebar-close-btn { display: flex; }
 
   .layout { flex-direction: column; }
 

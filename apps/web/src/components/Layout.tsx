@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
-  LogOut, LayoutDashboard, ClipboardList, UserPlus, Menu, X, Eye
+  LogOut, LayoutDashboard, ClipboardList, UserPlus, Menu, Eye
 } from 'lucide-react';
 import './Layout.css';
 
@@ -48,9 +48,6 @@ export function Layout() {
             <span className="logo-icon">A</span>
             <h2>Smart Attendance</h2>
           </div>
-          <button className="icon-btn sidebar-close-btn" onClick={closeSidebar} aria-label="Close menu">
-            <X size={20} />
-          </button>
         </div>
 
         <nav className="sidebar-nav">
