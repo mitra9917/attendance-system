@@ -172,7 +172,7 @@ function RegisterCourse() {
   };
 
   return (
-    <div className="register-panel glass-panel">
+    <div className="register-panel">
       <div className="panel-header">
         <div className="panel-icon">
           <BookOpen size={22} />
@@ -256,7 +256,7 @@ function RegisterCourse() {
 
         {/* Schedule Preview */}
         {slotPattern && blocks.length > 0 && (
-          <div className="schedule-preview glass-panel">
+          <div className="schedule-preview">
             <div className="schedule-preview-header">
               <Calendar size={16} />
               <span>
@@ -596,7 +596,7 @@ function RegisterStudent() {
   };
 
   return (
-    <div className="register-panel glass-panel">
+    <div className="register-panel">
       <div className="panel-header">
         <div className="panel-icon">
           <UserPlus size={22} />
@@ -807,14 +807,7 @@ function RegisterStudent() {
           )}
         </div>
 
-        <div
-          className="enroll-section glass-panel"
-          style={{
-            background: "rgba(99,102,241,0.05)",
-            border: "1px solid rgba(99,102,241,0.12)",
-            padding: "1rem",
-          }}
-        >
+        <div className="enroll-section">
           <label className="checkbox-label">
             <input
               type="checkbox"
@@ -1015,7 +1008,7 @@ function BulkImportStudents() {
     !isImporting;
 
   return (
-    <div className="register-panel glass-panel">
+    <div className="register-panel">
       <div className="panel-header">
         <div className="panel-icon">
           <FileSpreadsheet size={22} />
@@ -1040,14 +1033,7 @@ function BulkImportStudents() {
       )}
 
       <div className="register-form">
-        <div
-          className="enroll-section glass-panel"
-          style={{
-            background: "rgba(99,102,241,0.05)",
-            border: "1px solid rgba(99,102,241,0.12)",
-            padding: "1rem",
-          }}
-        >
+        <div className="enroll-section">
           <div className="form-group">
             <label htmlFor="bulk-course">Select Course *</label>
             {courses.length === 0 ? (
@@ -1219,7 +1205,7 @@ function ManageCourses() {
   };
 
   return (
-    <div className="register-panel glass-panel">
+    <div className="register-panel">
       <div className="panel-header">
         <div className="panel-icon">
           <List size={22} />
@@ -1568,7 +1554,7 @@ function ManageStudents() {
   };
 
   return (
-    <div className="register-panel glass-panel">
+    <div className="register-panel">
       <div className="panel-header">
         <div className="panel-icon">
           <GraduationCap size={22} />

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import * as faceapi from 'face-api.js';
 import { fetchApi } from '../lib/api';
+import './FaceEnrollment.css';
 
 export function FaceEnrollment() {
   const { id } = useParams<{ id: string }>();
@@ -104,7 +105,7 @@ export function FaceEnrollment() {
       });
       
       setStatus('Face enrollment successful!');
-      setTimeout(() => navigate('/students'), 2000);
+      setTimeout(() => navigate('/register'), 2000);
       
     } catch (err: any) {
       console.error(err);
@@ -115,43 +116,45 @@ export function FaceEnrollment() {
   };
 
   return (
-    <div className="page-container" style={{ maxWidth: '800px', margin: '0 auto' }}>
-      <div className="page-header" style={{ marginBottom: '1.5rem' }}>
+    <div className="face-enroll-page">
+      <div className="page-header">
         <h1>Face Enrollment</h1>
         {student && <p>Enrolling: <strong>{student.name} ({student.registrationNumber})</strong></p>}
       </div>
 
-      <div className="glass-panel" style={{ padding: '20px', textAlign: 'center' }}>
-        <div style={{ marginBottom: '20px', padding: '10px', backgroundColor: 'var(--surface-50)', borderRadius: '8px' }}>
+      <div className="page-card face-enroll-card">
+        <div className="face-enroll-status">
           <strong>Status:</strong> {status}
         </div>
 
-        <div style={{ position: 'relative', display: 'inline-block', marginBottom: '20px', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}>
-          <video 
-            ref={videoRef} 
-            muted 
+        <div className="face-enroll-video-wrap">
+          <video
+            ref={videoRef}
+            muted
             playsInline
-            style={{ display: 'block', maxWidth: '100%', backgroundColor: '#000' }}
+            className="face-enroll-video"
           />
         </div>
 
-        <div>
-          <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
-             The system will automatically capture 3 samples. Please move your head slightly between captures.
-          </p>
-          <button 
-            className="btn btn-primary" 
-            style={{ fontSize: '1.1rem', padding: '0.75rem 2rem' }}
-            onClick={handleCapture} 
+        {isCapturing && (
+          <p className="face-enroll-progress">Capturing sample {progress} of 3…</p>
+        )}
+
+        <p style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>
+          The system will automatically capture 3 samples. Please move your head slightly between captures.
+        </p>
+
+        <div className="face-enroll-actions">
+          <button
+            className="btn btn-primary"
+            onClick={handleCapture}
             disabled={!isModelLoaded || isCapturing || !student}
           >
             {isCapturing ? `Capturing (${progress}/3)...` : 'Start Capture'}
           </button>
-          
-          <button 
-            className="btn btn-secondary" 
-            style={{ marginLeft: '1rem' }}
-            onClick={() => navigate('/students')}
+          <button
+            className="btn btn-secondary"
+            onClick={() => navigate('/register')}
             disabled={isCapturing}
           >
             Cancel

@@ -106,12 +106,12 @@ There are no hardcoded default admin credentials. To create your first admin use
    ```bash
    curl -X POST http://localhost:3000/api/auth/register \
      -H "Content-Type: application/json" \
-     -d '{"email":"admin@example.com","password":"admin123","name":"Admin User","role":"ADMIN"}'
+     -d '{"email":"admin@example.com","password":"admin123","name":"Dr. RAJA M","role":"ADMIN"}'
    ```
 
    **Windows (PowerShell):**
    ```powershell
-   Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/auth/register" -ContentType "application/json" -Body '{"email":"admin@example.com","password":"admin123","name":"Admin User","role":"ADMIN"}'
+   Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/auth/register" -ContentType "application/json" -Body '{"email":"admin@example.com","password":"admin123","name":"Dr. RAJA M","role":"ADMIN"}'
    ```
 3. You can now log into the frontend at [http://localhost:5173](http://localhost:5173) using the email and password you just created.
 

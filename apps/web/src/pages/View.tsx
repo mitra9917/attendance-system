@@ -131,7 +131,7 @@ export function View() {
 
   return (
     <div className="view-page">
-      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1>View Attendance</h1>
           <p>Select a course, slot, and date to view attendance records</p>
@@ -143,8 +143,7 @@ export function View() {
         )}
       </div>
 
-      {/* Filter Panel */}
-      <div className="view-filter-panel glass-panel">
+      <div className="view-filter-card">
         <div className="filter-grid">
           <div className="form-group">
             <label htmlFor="view-course">Course</label>
@@ -183,9 +182,8 @@ export function View() {
           </div>
 
           <div className="form-group search-btn-group">
-            <label>&nbsp;</label>
             <button
-              className="btn btn-primary"
+              className="btn btn-primary btn-cta"
               onClick={handleSearch}
               disabled={isLoading || !selectedCourseId || !selectedSlotId || !selectedDate}
             >
@@ -201,7 +199,7 @@ export function View() {
 
       {/* No session found */}
       {hasSearched && !isLoading && !sessionDetail && !error && (
-        <div className="no-session glass-panel">
+        <div className="no-session">
           <Eye size={48} strokeWidth={1} />
           <h3>No attendance session found</h3>
           <p>No session was started for this course, slot, and date combination.</p>
@@ -213,28 +211,28 @@ export function View() {
         <>
           {/* Stats */}
           <div className="view-stats">
-            <div className="stat-card glass-panel present-card">
+            <div className="stat-card present-card">
               <CheckCircle size={28} />
               <div>
                 <span className="stat-number">{presentCount}</span>
                 <span className="stat-label">Present</span>
               </div>
             </div>
-            <div className="stat-card glass-panel absent-card">
+            <div className="stat-card absent-card">
               <XCircle size={28} />
               <div>
                 <span className="stat-number">{absentCount}</span>
                 <span className="stat-label">Absent</span>
               </div>
             </div>
-            <div className="stat-card glass-panel pending-card">
+            <div className="stat-card pending-card">
               <Clock size={28} />
               <div>
                 <span className="stat-number">{notMarkedCount}</span>
                 <span className="stat-label">Not Marked</span>
               </div>
             </div>
-            <div className="stat-card glass-panel percent-card">
+            <div className="stat-card percent-card">
               <div className="percent-ring">
                 <span>{attendancePercent}%</span>
               </div>
@@ -246,7 +244,7 @@ export function View() {
           </div>
 
           {/* Session info bar */}
-          <div className="session-info-bar glass-panel">
+          <div className="session-info-bar">
             <span>
               <strong>{sessionDetail.course?.code} — {sessionDetail.course?.name}</strong>
             </span>
@@ -259,11 +257,11 @@ export function View() {
 
           {/* Attendance Table */}
           {sessionDetail.records.length === 0 ? (
-            <div className="no-session glass-panel">
+            <div className="no-session">
               <p>No students enrolled in this course.</p>
             </div>
           ) : (
-            <div className="attendance-table-wrapper glass-panel">
+            <div className="attendance-table-wrapper">
               <table className="attendance-table">
                 <thead>
                   <tr>

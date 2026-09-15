@@ -4,7 +4,7 @@
   left: 0;
   width: 100vw;
   height: 100vh;
-  background-color: rgba(15, 17, 21, 0.7);
+  background-color: rgba(26, 60, 46, 0.35);
   backdrop-filter: blur(4px);
   z-index: 100;
   display: flex;
@@ -16,9 +16,10 @@
 .modal-content {
   width: 100%;
   max-width: 500px;
-  background: var(--bg-surface);
+  background: #ffffff;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   max-height: 90vh;
