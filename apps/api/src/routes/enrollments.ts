@@ -41,7 +41,7 @@ router.get('/', requireAuth, async (req: Request, res: Response): Promise<void> 
 // A student (by normalized registration number) must be unique within a course,
 // but the same student can be enrolled in multiple different courses.
 router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void> => {
-  const { courseId, studentId } = req.body;
+  const { courseId, studentId, serialNumber: requestedSerial } = req.body;
   if (!courseId || !studentId) {
     res.status(400).json({ error: 'courseId and studentId are required' });
     return;
@@ -66,10 +66,24 @@ router.post('/', requireAdmin, async (req: Request, res: Response): Promise<void
       }
     }
 
-    // Compute next serialNumber within the course using MAX to avoid conflicts when
-    // students have been deleted (count would be less than the highest existing serial number)
-    const maxSerial = existingEnrollmentsInCourse.reduce((max, e) => Math.max(max, e.serialNumber ?? 0), 0);
-    const serialNumber = maxSerial + 1;
+    let serialNumber: number;
+    if (requestedSerial !== undefined && requestedSerial !== null && requestedSerial !== '') {
+      const parsed = parseInt(String(requestedSerial), 10);
+      if (!Number.isInteger(parsed) || parsed < 1) {
+        res.status(400).json({ error: 'serialNumber must be a positive whole number' });
+        return;
+      }
+      const serialTaken = existingEnrollmentsInCourse.some((e) => e.serialNumber === parsed);
+      if (serialTaken) {
+        res.status(409).json({ error: `Serial number #${parsed} is already assigned in this course` });
+        return;
+      }
+      serialNumber = parsed;
+    } else {
+      // Auto-assign next serial within the course using MAX to avoid gaps after deletions
+      const maxSerial = existingEnrollmentsInCourse.reduce((max, e) => Math.max(max, e.serialNumber ?? 0), 0);
+      serialNumber = maxSerial + 1;
+    }
 
     const enrollment = await db.orm.public.Enrollment.create({ courseId, studentId, serialNumber });
     res.status(201).json(enrollment);
