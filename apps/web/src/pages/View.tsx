@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchApi } from '../lib/api';
-import { Eye, Search, CheckCircle, XCircle, Clock, Download } from 'lucide-react';
+import { Eye, Search, CheckCircle, XCircle, Clock, Download, Mail } from 'lucide-react';
 import { exportToCsv } from '../lib/exportUtils';
 import './View.css';
 
@@ -37,6 +37,7 @@ export function View() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   useEffect(() => {
     fetchApi('/courses')
@@ -129,6 +130,34 @@ export function View() {
     );
   };
 
+  const handleSendAbsenteeEmail = async () => {
+    if (!sessionDetail) return;
+    setIsSendingEmail(true);
+    try {
+      const status = await fetchApi('/gmail/status');
+      if (!status.connected) {
+        if (confirm('Gmail is not connected. Connect now?')) {
+          const { url } = await fetchApi('/gmail/auth-url');
+          window.location.href = url;
+        }
+        return;
+      }
+      const preview = await fetchApi(`/sessions/${sessionDetail.session.id}/absentee-email`);
+      const ok = confirm(
+        `Send absentee list from ${status.email} to ${preview.recipientCount} student(s)?\n\nAbsentees listed: ${preview.absenteeCount}`
+      );
+      if (!ok) return;
+      const result = await fetchApi(`/sessions/${sessionDetail.session.id}/send-absentee-email`, {
+        method: 'POST',
+      });
+      alert(`Sent to ${result.recipientCount} student(s).`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to send email');
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   return (
     <div className="view-page">
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -137,9 +166,14 @@ export function View() {
           <p>Select a course, slot, and date to view attendance records</p>
         </div>
         {sessionDetail && (
-          <button className="btn btn-secondary" onClick={handleExportCsv} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Download size={16} /> Export CSV
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary" onClick={handleSendAbsenteeEmail} disabled={isSendingEmail} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Mail size={16} /> {isSendingEmail ? 'Sending...' : 'Send Email'}
+            </button>
+            <button className="btn btn-secondary" onClick={handleExportCsv} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Download size={16} /> Export CSV
+            </button>
+          </div>
         )}
       </div>
 

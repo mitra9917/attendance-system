@@ -11,6 +11,7 @@ import {
   LayoutList,
   LayoutGrid,
   Download,
+  Mail,
 } from "lucide-react";
 import { exportToCsv } from "../lib/exportUtils";
 import { getBlocksForPattern } from "@attendance/shared";
@@ -40,6 +41,7 @@ interface AttendanceRecord {
     name: string;
     registrationNumber: string;
     photoUrl?: string;
+    email?: string | null;
   } | null;
 }
 
@@ -86,6 +88,8 @@ export function Attendance() {
   const [pendingCount, setPendingCount] = useState(0);
   const [studentListView, setStudentListView] =
     useState<StudentListView>("detail");
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [gmailNotice, setGmailNotice] = useState("");
 
   // Sync and online status effect
   useEffect(() => {
@@ -122,6 +126,19 @@ export function Attendance() {
       window.removeEventListener("offline", handleOffline);
     };
   }, [session?.id]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gmail = params.get("gmail");
+    if (gmail === "connected") setGmailNotice("Gmail connected. You can send absentee emails.");
+    if (gmail === "denied") setGmailNotice("Gmail access was denied.");
+    if (gmail === "error") setGmailNotice("Gmail connection failed. Check Google Cloud OAuth settings.");
+    if (gmail) {
+      params.delete("gmail");
+      const next = `${window.location.pathname}${params.toString() ? `?${params}` : ""}`;
+      window.history.replaceState({}, "", next);
+    }
+  }, []);
 
   useEffect(() => {
     fetchApi("/courses")
@@ -285,6 +302,47 @@ export function Attendance() {
     exportToCsv(records, session.date, course.code);
   };
 
+  const handleSendAbsenteeEmail = async () => {
+    if (!session) return;
+    setIsSendingEmail(true);
+    setGmailNotice("");
+    try {
+      const status = await fetchApi("/gmail/status");
+      if (!status.configured) {
+        setGmailNotice("Add Google OAuth keys in apps/api/.env, then restart the API.");
+        return;
+      }
+      if (!status.connected) {
+        if (confirm("Gmail is not connected. Connect now?")) {
+          const { url } = await fetchApi("/gmail/auth-url");
+          window.location.href = url;
+        }
+        return;
+      }
+
+      const preview = await fetchApi(`/sessions/${session.id}/absentee-email`);
+      const missing = preview.missingEmails?.length ?? 0;
+      const unmarked = preview.unmarkedCount ?? 0;
+      const ok = confirm(
+        `Send absentee list from ${status.email} to ${preview.recipientCount} student(s)?\n\n` +
+          `Absentees listed: ${preview.absenteeCount}\n` +
+          `Present: ${preview.presentCount}\n` +
+          (unmarked ? `Not marked (not listed as absent): ${unmarked}\n` : "") +
+          (missing ? `Missing emails: ${missing}\n` : ""),
+      );
+      if (!ok) return;
+
+      const result = await fetchApi(`/sessions/${session.id}/send-absentee-email`, {
+        method: "POST",
+      });
+      setGmailNotice(`Sent to ${result.recipientCount} student(s) from ${result.from}.`);
+    } catch (err: any) {
+      setGmailNotice(err.message || "Failed to send email");
+    } finally {
+      setIsSendingEmail(false);
+    }
+  };
+
   const presentCount = records.filter((r) => r.status === "PRESENT").length;
   const absentCount = records.filter((r) => r.status === "ABSENT").length;
   const unmarkedCount = records.filter((r) => r.status === "NOT_MARKED").length;
@@ -308,6 +366,14 @@ export function Attendance() {
             <p>Select a date and course to begin an attendance session</p>
           </div>
         </div>
+
+        {gmailNotice && (
+          <div className={`sync-banner ${gmailNotice.includes("connected") ? "sync-banner--online" : "sync-banner--offline"}`}>
+            <div className="sync-banner-inner">
+              <strong>{gmailNotice}</strong>
+            </div>
+          </div>
+        )}
 
         <div className="setup-card page-card">
           <div className="setup-icon">
@@ -448,6 +514,14 @@ export function Attendance() {
             ← Back
           </button>
           <button
+            className="btn btn-secondary"
+            onClick={handleSendAbsenteeEmail}
+            disabled={records.length === 0 || isSendingEmail}
+          >
+            <Mail size={16} />
+            {isSendingEmail ? "Sending..." : "Send Email"}
+          </button>
+          <button
             className="btn btn-primary"
             onClick={handleExportCsv}
             disabled={records.length === 0}
@@ -457,6 +531,14 @@ export function Attendance() {
           </button>
         </div>
       </div>
+
+      {gmailNotice && (
+        <div className={`sync-banner ${gmailNotice.startsWith("Sent") || gmailNotice.includes("connected") ? "sync-banner--online" : "sync-banner--offline"}`}>
+          <div className="sync-banner-inner">
+            <strong>{gmailNotice}</strong>
+          </div>
+        </div>
+      )}
 
       <div className="session-body">
         {/* Offline & Sync Status Banner */}

@@ -1,15 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
-  LogOut, ClipboardList, UserPlus, Menu, Eye,
+  LogOut, ClipboardList, UserPlus, Menu, Eye, Mail,
 } from 'lucide-react';
+import { fetchApi } from '../lib/api';
 import './Layout.css';
 
 export function Layout() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; email: string | null } | null>(null);
+
+  useEffect(() => {
+    fetchApi('/gmail/status')
+      .then((s) => setGmailStatus({ connected: s.connected, email: s.email }))
+      .catch(() => setGmailStatus({ connected: false, email: null }));
+  }, []);
+
+  const handleConnectGmail = async () => {
+    try {
+      const { url } = await fetchApi('/gmail/auth-url');
+      window.location.href = url;
+    } catch (err: any) {
+      alert(err.message || 'Failed to start Gmail connection');
+    }
+  };
+
+  const handleDisconnectGmail = async () => {
+    if (!confirm('Disconnect Gmail from this account?')) return;
+    try {
+      await fetchApi('/gmail/disconnect', { method: 'POST' });
+      setGmailStatus({ connected: false, email: null });
+    } catch (err: any) {
+      alert(err.message || 'Failed to disconnect Gmail');
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -72,6 +99,16 @@ export function Layout() {
               </span>
             </div>
           </div>
+          <button
+            className="btn btn-secondary logout-btn"
+            onClick={gmailStatus?.connected ? handleDisconnectGmail : handleConnectGmail}
+          >
+            <Mail size={16} />
+            <span>{gmailStatus?.connected ? 'Disconnect Gmail' : 'Connect Gmail'}</span>
+          </button>
+          {gmailStatus?.connected && gmailStatus.email && (
+            <span className="gmail-connected">{gmailStatus.email}</span>
+          )}
           <button className="btn btn-secondary logout-btn" onClick={handleLogout}>
             <LogOut size={16} />
             <span>Logout</span>
