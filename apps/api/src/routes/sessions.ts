@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { db } from '../prisma/db.js';
 import { requireAuth, AuthPayload } from '../middleware/auth.js';
 import { getBlocksForPattern } from '@attendance/shared';
+import { buildAbsenteeEmail, loadSessionRoster, persistMissingEmails, resolveStudentEmail } from '../lib/absenteeEmail.js';
+import { getGmailStatus, sendGmail } from '../lib/gmail.js';
 
 const router = Router();
 
@@ -162,6 +164,7 @@ router.get('/:id', requireAuth, async (req: Request, res: Response): Promise<voi
             name: student.name,
             registrationNumber: student.registrationNumber,
             photoUrl: student.photoUrl,
+            email: resolveStudentEmail(enrollment?.serialNumber ?? null, student.email),
           } : null,
           serialNumber: enrollment?.serialNumber ?? null,
         };
@@ -314,6 +317,116 @@ router.get('/:id/faces', requireAuth, async (req: Request, res: Response): Promi
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch session faces' });
+  }
+});
+
+// GET /api/sessions/:id/absentee-email  — preview absentee mail
+router.get('/:id/absentee-email', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  try {
+    const roster = await loadSessionRoster(id);
+    if (!roster) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+    const preview = buildAbsenteeEmail({
+      courseCode: roster.course.code,
+      courseName: roster.course.name,
+      slotPattern: roster.course.slotPattern,
+      teacherName: roster.teacherName,
+      rows: roster.rows,
+    });
+    const missingEmails = roster.rows.filter((r) => !r.email).map((r) => ({
+      serialNumber: r.serialNumber,
+      name: r.name,
+      registrationNumber: r.registrationNumber,
+    }));
+    const unmarkedCount = roster.rows.filter((r) => r.status === 'NOT_MARKED').length;
+    res.json({
+      subject: preview.subject,
+      body: preview.body,
+      recipientCount: preview.recipients.length,
+      absenteeCount: preview.absentees.length,
+      presentCount: preview.presentees.length,
+      missingEmails,
+      unmarkedCount,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to preview absentee email' });
+  }
+});
+
+// POST /api/sessions/:id/send-absentee-email
+router.post('/:id/send-absentee-email', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  const id = parseInt(req.params.id);
+  const teacher = (req as any).user as AuthPayload;
+  try {
+    const gmail = await getGmailStatus(teacher.userId);
+    if (!gmail.configured) {
+      res.status(400).json({ error: 'Google OAuth is not configured on the server' });
+      return;
+    }
+    if (!gmail.connected) {
+      res.status(400).json({ error: 'Connect Gmail first from the sidebar' });
+      return;
+    }
+
+    const roster = await loadSessionRoster(id);
+    if (!roster) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    await persistMissingEmails(roster.rows);
+    const refreshed = await loadSessionRoster(id);
+    if (!refreshed) {
+      res.status(404).json({ error: 'Session not found' });
+      return;
+    }
+
+    const mail = buildAbsenteeEmail({
+      courseCode: refreshed.course.code,
+      courseName: refreshed.course.name,
+      slotPattern: refreshed.course.slotPattern,
+      teacherName: refreshed.teacherName,
+      rows: refreshed.rows,
+    });
+
+    if (mail.recipients.length === 0) {
+      res.status(400).json({ error: 'No student email addresses found for this course' });
+      return;
+    }
+
+    await sendGmail({
+      userId: teacher.userId,
+      to: gmail.email ? [gmail.email, ...mail.recipients] : mail.recipients,
+      subject: mail.subject,
+      body: mail.body,
+    });
+
+    await db.orm.public.AuditLog.create({
+      userId: teacher.userId,
+      action: 'ABSENTEE_EMAIL_SENT',
+      entityType: 'AttendanceSession',
+      entityId: id,
+      details: JSON.stringify({
+        recipientCount: mail.recipients.length,
+        absenteeCount: mail.absentees.length,
+        from: gmail.email,
+      }),
+      ip: req.ip || '',
+    });
+
+    res.json({
+      message: 'Absentee list sent',
+      recipientCount: mail.recipients.length,
+      absenteeCount: mail.absentees.length,
+      from: gmail.email,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err instanceof Error ? err.message : 'Failed to send email' });
   }
 });
 

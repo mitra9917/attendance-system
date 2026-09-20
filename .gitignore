@@ -39,3 +39,7 @@ lerna-debug.log*
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Gmail OAuth tokens
+.gmail-tokens.json
+apps/api/.gmail-tokens.json

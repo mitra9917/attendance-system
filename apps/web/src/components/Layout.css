@@ -141,6 +141,13 @@
 .user-name { font-weight: 600; font-size: 0.875rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .user-role { font-size: 0.65rem; width: fit-content; }
 .logout-btn { width: 100%; justify-content: center; }
+.gmail-connected {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: center;
+  word-break: break-all;
+  margin-top: -0.35rem;
+}
 
 /* ─── Main Content ─── */
 .main-content {
