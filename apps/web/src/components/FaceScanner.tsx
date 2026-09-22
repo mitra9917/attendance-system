@@ -17,7 +17,7 @@ interface LabeledDescriptor {
 type ScanState = "IDLE" | "FACE_FOUND" | "MATCHING" | "SUCCESS" | "NO_MATCH";
 
 // How many consecutive detection frames before we extract descriptor & match
-const STABLE_FRAMES_REQUIRED = 8;
+const STABLE_FRAMES_REQUIRED = 4;
 // How long to show SUCCESS/NO_MATCH before resetting (ms)
 const RESET_DELAY_MS = 2500;
 // Per-student cooldown after being marked (ms)
@@ -164,6 +164,21 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
 
   const flipCamera = async () => {
     const newMode = facingMode === "user" ? "environment" : "user";
+    
+    // Stop the scanning loop and reset state to avoid stale frames/matches
+    isRunningRef.current = false;
+    setIsRunning(false);
+    stableFrames.current = 0;
+    scanStateRef.current = "IDLE";
+    setPrompt("");
+    setScanState("IDLE");
+
+    // Clear canvas
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext("2d");
+      ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
+
     // Stop current stream before starting new one to avoid conflicts
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream)
@@ -171,6 +186,7 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
         .forEach((t) => t.stop());
       videoRef.current.srcObject = null;
     }
+    
     await startCamera(newMode);
   };
 
@@ -275,7 +291,7 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
           bestMatch = { studentId: ld.studentId, distance: d };
       }
 
-      if (bestMatch.distance <= 0.58) {
+      if (bestMatch.distance <= 0.55) {
         const rec = recordsRef.current.find(
           (r) => r.studentId === bestMatch.studentId,
         );
@@ -283,13 +299,14 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
           const now = Date.now();
           const lastHit = matchCooldowns.current.get(bestMatch.studentId) || 0;
           const name = rec.student?.name ?? "Student";
+          const confidence = Math.max(0, Math.round((1 - bestMatch.distance) * 100));
 
           if (rec.status !== "PRESENT" && now - lastHit > COOLDOWN_MS) {
             matchCooldowns.current.set(bestMatch.studentId, now);
             onMatch(bestMatch.studentId);
             setPromptAndState(
               "SUCCESS",
-              `✅ ${name} marked Present! (Score: ${bestMatch.distance.toFixed(2)})`,
+              `✅ ${name} marked Present! (Confidence: ${confidence}%)`,
             );
           } else if (rec.status === "PRESENT") {
             setPromptAndState("SUCCESS", `✅ ${name} is already present`);
@@ -301,9 +318,10 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
           }
         }
       } else {
+        const confidence = Math.max(0, Math.round((1 - bestMatch.distance) * 100));
         setPromptAndState(
           "NO_MATCH",
-          `❌ No match (score: ${bestMatch.distance.toFixed(2)}) — try again`,
+          `❌ No match (Confidence: ${confidence}%) — try again`,
         );
       }
 
