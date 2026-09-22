@@ -209,27 +209,34 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
         // Phase 1: fast detection only — no landmark or descriptor
         const detections = await faceapi.detectAllFaces(video);
 
-        if (detections.length > 1) {
-          stableFrames.current = 0;
-          setPromptAndState(
-            "IDLE",
-            "Multiple faces detected — ensure only one student is in frame",
+        if (detections.length === 0) {
+          // Face lost
+          if (stableFrames.current > 0) {
+            stableFrames.current = 0;
+            setPromptAndState("IDLE", "Face not visible — reposition");
+          }
+          drawBox([], video);
+        } else {
+          // Pick the nearest face = largest bounding box area
+          const nearest = detections.reduce((best, d) =>
+            d.box.width * d.box.height > best.box.width * best.box.height ? d : best
           );
-          drawBox(detections, video);
-        } else if (detections.length === 1) {
-          const detection = detections[0];
+
+          const multiMsg = detections.length > 1
+            ? " (nearest selected)"
+            : "";
 
           // Face Quality Checks: High confidence detection and face must be large enough
-          if (detection.score > 0.85 && detection.box.width > 100) {
+          if (nearest.score > 0.85 && nearest.box.width > 100) {
             stableFrames.current += 1;
             if (state === "IDLE") {
               setPromptAndState(
                 "FACE_FOUND",
-                `Hold still… (${Math.min(stableFrames.current, STABLE_FRAMES_REQUIRED)}/${STABLE_FRAMES_REQUIRED})`,
+                `Hold still… (${Math.min(stableFrames.current, STABLE_FRAMES_REQUIRED)}/${STABLE_FRAMES_REQUIRED})${multiMsg}`,
               );
             } else {
               setPrompt(
-                `Hold still… (${Math.min(stableFrames.current, STABLE_FRAMES_REQUIRED)}/${STABLE_FRAMES_REQUIRED})`,
+                `Hold still… (${Math.min(stableFrames.current, STABLE_FRAMES_REQUIRED)}/${STABLE_FRAMES_REQUIRED})${multiMsg}`,
               );
             }
 
@@ -241,7 +248,7 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
           } else {
             // Face found but poor quality
             stableFrames.current = 0;
-            if (detection.box.width <= 100) {
+            if (nearest.box.width <= 100) {
               setPromptAndState("IDLE", "Move closer to the camera");
             } else {
               setPromptAndState(
@@ -251,14 +258,8 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
             }
           }
 
+          // Draw all detected boxes so operator sees the full scene
           drawBox(detections, video);
-        } else {
-          // Face lost
-          if (stableFrames.current > 0) {
-            stableFrames.current = 0;
-            setPromptAndState("IDLE", "Face not visible — reposition");
-          }
-          drawBox([], video);
         }
       } else if (state === "SUCCESS" || state === "NO_MATCH") {
         // Waiting for auto-reset — do nothing except keep rAF alive
@@ -273,16 +274,25 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
 
   const runMatch = async (video: HTMLVideoElement) => {
     try {
-      const full = await faceapi
-        .detectSingleFace(video)
+      // Detect all faces and pick the nearest (largest area) for matching
+      const allFull = await faceapi
+        .detectAllFaces(video)
         .withFaceLandmarks()
-        .withFaceDescriptor();
+        .withFaceDescriptors();
 
-      if (!full) {
+      if (!allFull || allFull.length === 0) {
         stableFrames.current = 0;
         setPromptAndState("IDLE", "Lost face during verification — try again");
         return;
       }
+
+      // Pick nearest face by largest bounding box area
+      const full = allFull.reduce((best, d) =>
+        d.detection.box.width * d.detection.box.height >
+        best.detection.box.width * best.detection.box.height
+          ? d
+          : best
+      );
 
       let bestMatch = { studentId: -1, distance: 1.0 };
       for (const ld of labeledDescsRef.current) {
