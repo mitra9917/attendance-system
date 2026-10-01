@@ -17,7 +17,7 @@ interface LabeledDescriptor {
 type ScanState = "IDLE" | "FACE_FOUND" | "MATCHING" | "SUCCESS" | "NO_MATCH";
 
 // How many consecutive detection frames before we extract descriptor & match
-const STABLE_FRAMES_REQUIRED = 8;
+const STABLE_FRAMES_REQUIRED = 4;
 // How long to show SUCCESS/NO_MATCH before resetting (ms)
 const RESET_DELAY_MS = 2500;
 // Per-student cooldown after being marked (ms)
@@ -164,6 +164,21 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
 
   const flipCamera = async () => {
     const newMode = facingMode === "user" ? "environment" : "user";
+    
+    // Stop the scanning loop and reset state to avoid stale frames/matches
+    isRunningRef.current = false;
+    setIsRunning(false);
+    stableFrames.current = 0;
+    scanStateRef.current = "IDLE";
+    setPrompt("");
+    setScanState("IDLE");
+
+    // Clear canvas
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext("2d");
+      ctx?.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
+
     // Stop current stream before starting new one to avoid conflicts
     if (videoRef.current?.srcObject) {
       (videoRef.current.srcObject as MediaStream)
@@ -171,6 +186,7 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
         .forEach((t) => t.stop());
       videoRef.current.srcObject = null;
     }
+    
     await startCamera(newMode);
   };
 
@@ -193,27 +209,34 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
         // Phase 1: fast detection only — no landmark or descriptor
         const detections = await faceapi.detectAllFaces(video);
 
-        if (detections.length > 1) {
-          stableFrames.current = 0;
-          setPromptAndState(
-            "IDLE",
-            "Multiple faces detected — ensure only one student is in frame",
+        if (detections.length === 0) {
+          // Face lost
+          if (stableFrames.current > 0) {
+            stableFrames.current = 0;
+            setPromptAndState("IDLE", "Face not visible — reposition");
+          }
+          drawBox([], video);
+        } else {
+          // Pick the nearest face = largest bounding box area
+          const nearest = detections.reduce((best, d) =>
+            d.box.width * d.box.height > best.box.width * best.box.height ? d : best
           );
-          drawBox(detections, video);
-        } else if (detections.length === 1) {
-          const detection = detections[0];
+
+          const multiMsg = detections.length > 1
+            ? " (nearest selected)"
+            : "";
 
           // Face Quality Checks: High confidence detection and face must be large enough
-          if (detection.score > 0.85 && detection.box.width > 100) {
+          if (nearest.score > 0.85 && nearest.box.width > 100) {
             stableFrames.current += 1;
             if (state === "IDLE") {
               setPromptAndState(
                 "FACE_FOUND",
-                `Hold still… (${Math.min(stableFrames.current, STABLE_FRAMES_REQUIRED)}/${STABLE_FRAMES_REQUIRED})`,
+                `Hold still… (${Math.min(stableFrames.current, STABLE_FRAMES_REQUIRED)}/${STABLE_FRAMES_REQUIRED})${multiMsg}`,
               );
             } else {
               setPrompt(
-                `Hold still… (${Math.min(stableFrames.current, STABLE_FRAMES_REQUIRED)}/${STABLE_FRAMES_REQUIRED})`,
+                `Hold still… (${Math.min(stableFrames.current, STABLE_FRAMES_REQUIRED)}/${STABLE_FRAMES_REQUIRED})${multiMsg}`,
               );
             }
 
@@ -225,7 +248,7 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
           } else {
             // Face found but poor quality
             stableFrames.current = 0;
-            if (detection.box.width <= 100) {
+            if (nearest.box.width <= 100) {
               setPromptAndState("IDLE", "Move closer to the camera");
             } else {
               setPromptAndState(
@@ -235,14 +258,8 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
             }
           }
 
+          // Draw all detected boxes so operator sees the full scene
           drawBox(detections, video);
-        } else {
-          // Face lost
-          if (stableFrames.current > 0) {
-            stableFrames.current = 0;
-            setPromptAndState("IDLE", "Face not visible — reposition");
-          }
-          drawBox([], video);
         }
       } else if (state === "SUCCESS" || state === "NO_MATCH") {
         // Waiting for auto-reset — do nothing except keep rAF alive
@@ -257,16 +274,25 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
 
   const runMatch = async (video: HTMLVideoElement) => {
     try {
-      const full = await faceapi
-        .detectSingleFace(video)
+      // Detect all faces and pick the nearest (largest area) for matching
+      const allFull = await faceapi
+        .detectAllFaces(video)
         .withFaceLandmarks()
-        .withFaceDescriptor();
+        .withFaceDescriptors();
 
-      if (!full) {
+      if (!allFull || allFull.length === 0) {
         stableFrames.current = 0;
         setPromptAndState("IDLE", "Lost face during verification — try again");
         return;
       }
+
+      // Pick nearest face by largest bounding box area
+      const full = allFull.reduce((best, d) =>
+        d.detection.box.width * d.detection.box.height >
+        best.detection.box.width * best.detection.box.height
+          ? d
+          : best
+      );
 
       let bestMatch = { studentId: -1, distance: 1.0 };
       for (const ld of labeledDescsRef.current) {
@@ -275,7 +301,7 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
           bestMatch = { studentId: ld.studentId, distance: d };
       }
 
-      if (bestMatch.distance <= 0.58) {
+      if (bestMatch.distance <= 0.55) {
         const rec = recordsRef.current.find(
           (r) => r.studentId === bestMatch.studentId,
         );
@@ -283,13 +309,14 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
           const now = Date.now();
           const lastHit = matchCooldowns.current.get(bestMatch.studentId) || 0;
           const name = rec.student?.name ?? "Student";
+          const confidence = Math.max(0, Math.round((1 - bestMatch.distance) * 100));
 
           if (rec.status !== "PRESENT" && now - lastHit > COOLDOWN_MS) {
             matchCooldowns.current.set(bestMatch.studentId, now);
             onMatch(bestMatch.studentId);
             setPromptAndState(
               "SUCCESS",
-              `✅ ${name} marked Present! (Score: ${bestMatch.distance.toFixed(2)})`,
+              `✅ ${name} marked Present! (Confidence: ${confidence}%)`,
             );
           } else if (rec.status === "PRESENT") {
             setPromptAndState("SUCCESS", `✅ ${name} is already present`);
@@ -301,9 +328,10 @@ export function FaceScanner({ sessionId, onMatch, records }: FaceScannerProps) {
           }
         }
       } else {
+        const confidence = Math.max(0, Math.round((1 - bestMatch.distance) * 100));
         setPromptAndState(
           "NO_MATCH",
-          `❌ No match (score: ${bestMatch.distance.toFixed(2)}) — try again`,
+          `❌ No match (Confidence: ${confidence}%) — try again`,
         );
       }
 

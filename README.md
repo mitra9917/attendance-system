@@ -1,159 +1,238 @@
-# Smart Attendance System
+﻿# Smart Attendance System
 
-A full-stack, monorepo-based smart attendance management system built with **React**, **Express**, **Prisma 8**, **PostgreSQL**, and **face-api.js** (for facial recognition).
+A face-recognition based attendance system built with React, Express, Prisma 8, and PostgreSQL.
 
----
-
-## Architecture & Tech Stack
-
-This project is a monorepo using npm workspaces:
-
-- `apps/web`: The frontend, built with React, Vite, and Zustand. Uses `face-api.js` for client-side face detection and embeddings.
-- `apps/api`: The backend, built with Node.js, Express, and Prisma 8 ORM.
-- `packages/shared`: Shared TypeScript types and constants (like time slots and domain models) used by both the frontend and backend.
+**Live Demo:** [https://attendance-system-api-omega.vercel.app/](https://attendance-system-api-omega.vercel.app/)
 
 ---
 
-## Local Development Setup Guide
+## Prerequisites
 
-If you are a new developer joining the project, follow these steps exactly to get your local environment running.
+Make sure you have these installed before starting:
 
-### 1. Prerequisites
+| Tool | Version | Check |
+|------|---------|-------|
+| **Node.js** | v18+ (LTS) | `node --version` |
+| **npm** | v8+ | `npm --version` |
+| **Docker** | Any recent | `docker --version` |
+| **Git** | Any recent | `git --version` |
 
-- **Node.js**: v18 or higher (LTS recommended)
-- **Docker**: For running a local PostgreSQL database (Recommended for local dev)
-- **Git**
+> **Windows:** Docker Desktop must be running before Step 3.
 
-### 2. Clone and Install Dependencies
+---
 
-Clone the repository and install all dependencies from the root directory. This will automatically install packages for the web, api, and shared workspaces.
+## Setup Guide
+
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/tanmayskotadia/attendance-system.git
 cd attendance-system
+```
+
+---
+
+### 2. Install Dependencies
+
+From the **root directory**, run:
+
+```bash
 npm install
 ```
 
-### 3. Database & Environment Configuration
+This installs packages for all three workspaces (`apps/api`, `apps/web`, `packages/shared`) and automatically builds the shared package.
 
-You can start a local PostgreSQL database instantly using Docker.
+---
 
-1. From the root directory, start the database:
-   ```bash
-   docker compose up -d
-   ```
-2. Navigate to the API folder and copy the example environment file:
-   ```bash
-   cd apps/api
-   
-   # Linux/macOS
-   cp .env.example .env
-   
-   # Windows (PowerShell)
-   Copy-Item .env.example .env
-   ```
-   *(The `.env.example` is already pre-configured to connect to the Docker database).*
-
-### 4. Initialize the Database (Prisma 8)
-
-This project uses **Prisma 8** (currently in release candidate), which has a slightly different CLI than older versions of Prisma.
-
-From the `apps/api` directory, run:
-
-1. **Update the database schema:**
-   ```bash
-   npx prisma db update
-   ```
-   *(If prompted to confirm, type the database name as requested).*
-
-2. Return to the root directory:
-   ```bash
-   cd ../..
-   ```
-
-### 5. Build the Shared Package
-
-The monorepo has a shared TypeScript package (`packages/shared`) used by both frontend and backend. Build it once before starting dev (this also runs automatically after `npm install`):
+### 3. Start the Local Database
 
 ```bash
-npm run build -w @attendance/shared
+docker compose up -d
 ```
 
-### 6. Start the Development Servers
+This starts a PostgreSQL 15 container with:
 
-You can run both the frontend and backend simultaneously from the **root directory**:
+| Setting | Value |
+|---------|-------|
+| Host | `localhost` |
+| Port | `5432` |
+| Username | `user` |
+| Password | `password` |
+| Database | `mydb` |
+
+Verify it is running: `docker compose ps`
+
+---
+
+### 4. Configure Environment Variables
+
+```bash
+cd apps/api
+```
+
+**Linux / macOS:**
+```bash
+cp .env.example .env
+```
+
+**Windows (PowerShell):**
+```powershell
+Copy-Item .env.example .env
+```
+
+The default `.env` is already configured for Docker — no changes needed for local development:
+
+```env
+DATABASE_URL="postgresql://user:password@localhost:5432/mydb"
+PORT=3000
+JWT_SECRET="change-me"
+
+# Optional — leave blank to skip Gmail email features
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+GOOGLE_REDIRECT_URI="http://localhost:3000/api/gmail/callback"
+FRONTEND_URL="http://localhost:5173"
+```
+
+> For production, always change `JWT_SECRET` to a long, random string.
+
+Return to root:
+```bash
+cd ../..
+```
+
+---
+
+### 5. Initialize the Database Schema
+
+This project uses **Prisma 8** (RC). Run this from the `apps/api` directory:
+
+```bash
+cd apps/api
+npx prisma db update
+cd ../..
+```
+
+> If prompted, type the database name (`mydb`) to confirm.
+
+---
+
+### 6. Download Face Recognition Models
+
+The face scanner needs model weight files (~20 MB). Download them once:
+
+```bash
+cd apps/web
+node download-models.cjs
+cd ../..
+```
+
+This saves the models to `apps/web/public/models/`. Skip this step if the folder already has files.
+
+---
+
+### 7. Start the Development Servers
+
+From the **root directory**:
 
 ```bash
 npm run dev
 ```
 
-- **Frontend:** [http://localhost:5173](http://localhost:5173)
-- **Backend API:** [http://localhost:3000](http://localhost:3000)
-
-### 7. First Login & Registration
-
-There are no hardcoded default admin credentials. To create your first admin user:
-
-1. While the servers are running, open a new terminal.
-2. Send a POST request to the local API to register an admin user:
-
-   **Linux/macOS (cURL):**
-   ```bash
-   curl -X POST http://localhost:3000/api/auth/register \
-     -H "Content-Type: application/json" \
-     -d '{"email":"admin@example.com","password":"admin123","name":"Dr. RAJA M","role":"ADMIN"}'
-   ```
-
-   **Windows (PowerShell):**
-   ```powershell
-   Invoke-RestMethod -Method POST -Uri "http://localhost:3000/api/auth/register" -ContentType "application/json" -Body '{"email":"admin@example.com","password":"admin123","name":"Dr. RAJA M","role":"ADMIN"}'
-   ```
-3. You can now log into the frontend at [http://localhost:5173](http://localhost:5173) using the email and password you just created.
-
-**Default admin credentials (production):**
-
-| Field | Value |
-|-------|-------|
-| Email | `admin@example.com` |
-| Password | `admin123` |
-
-**Production app:** [https://attendance-system-api-omega.vercel.app/](https://attendance-system-api-omega.vercel.app/)
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| Backend API | http://localhost:3000 |
+| Health check | http://localhost:3000/health |
 
 ---
 
-## Production Deployment Guide
+### 8. Create Your First Admin User
 
-This project is configured to be easily deployed to **Vercel** (Frontend) and **Render** (Backend), using a **Neon** PostgreSQL database.
+No default credentials exist. Register an admin via the API while the servers are running.
 
-### 1. Database (Neon)
-1. Create a new PostgreSQL database on Neon.
-2. Get your connection string (e.g., `postgresql://user:pass@ep-cool-db.neon.tech/dbname?sslmode=require`).
-3. Set this connection string in your local `apps/api/.env` file.
-4. Run `npx prisma db update` from `apps/api` to push the tables to Neon.
+**Linux / macOS:**
+```bash
+curl -X POST http://localhost:3000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"admin123","name":"Admin","role":"ADMIN"}'
+```
 
-### 2. Backend API (Render)
-Create a new **Web Service** on Render connected to your GitHub repo.
-- **Root Directory:** *(leave blank)*
-- **Build Command:** `npm install --include=dev && npm run build -w @attendance/shared && npm run build -w @attendance/api`
-- **Start Command:** `npm run start -w @attendance/api`
-- **Environment Variables:**
-  - `DATABASE_URL`: Your Neon connection string
-  - `JWT_SECRET`: A secure random string
-
-*Note your live Render URL once deployed (e.g., `https://attendance-api-xyz.onrender.com`).*
-
-### 3. Frontend (Vercel)
-Create a new project on Vercel connected to your GitHub repo. The project includes a `vercel.json` file that automatically configures the monorepo build, but ensure the following:
-- **Framework Preset:** Vite (or Other)
-- **Environment Variables:**
-  - `VITE_API_URL`: Your Render backend URL **with `/api` appended** (e.g., `https://attendance-api-xyz.onrender.com/api`)
-
-Once deployed, the frontend will communicate with the live backend, which stores data in your cloud database.
+**Windows (PowerShell):**
+```powershell
+Invoke-RestMethod -Method POST `
+  -Uri "http://localhost:3000/api/auth/register" `
+  -ContentType "application/json" `
+  -Body '{"email":"admin@example.com","password":"admin123","name":"Admin","role":"ADMIN"}'
+```
 
 ---
 
-## Face Recognition Note
+### 9. Log In
 
-The frontend uses `face-api.js` for facial recognition. 
-- The model weights are stored in `apps/web/public/models/`.
-- For the camera and facial recognition to work properly in production, the site **must** be served over HTTPS. Vercel handles this automatically.
+Open [http://localhost:5173](http://localhost:5173) and log in with the credentials you just created.
+
+**Setup complete!**
+
+---
+
+## Production Deployment
+
+Deploy using **Vercel** (frontend) + **Render** (backend) + **Neon** (database).
+
+### 1. Database — Neon
+
+1. Create a project at [neon.tech](https://neon.tech).
+2. Copy the connection string (e.g., `postgresql://user:pass@ep-xxx.neon.tech/db?sslmode=require`).
+3. Temporarily set it as `DATABASE_URL` in `apps/api/.env`.
+4. Run: `cd apps/api && npx prisma db update && cd ../..`
+
+### 2. Backend — Render
+
+Create a **Web Service** connected to your GitHub repo:
+
+| Setting | Value |
+|---------|-------|
+| Build Command | `npm install --include=dev && npm run build -w @attendance/shared && npm run build -w @attendance/api` |
+| Start Command | `npm run start -w @attendance/api` |
+
+Set these environment variables in Render:
+
+| Key | Value |
+|-----|-------|
+| `DATABASE_URL` | Neon connection string |
+| `JWT_SECRET` | Long random string |
+| `FRONTEND_URL` | Your Vercel URL (add after frontend deploy) |
+
+### 3. Frontend — Vercel
+
+Import your repo on [vercel.com](https://vercel.com). The `vercel.json` in the root auto-configures the build. Add one environment variable:
+
+| Key | Value |
+|-----|-------|
+| `VITE_API_URL` | `https://your-render-url.onrender.com/api` |
+
+After deploying, create an admin user using the production URL (same curl command, replacing `localhost:3000` with your Render URL).
+
+---
+
+## Troubleshooting
+
+**Cannot connect to database**
+- Run `docker compose up -d` and verify with `docker compose ps`.
+- Check `DATABASE_URL` in `apps/api/.env` matches the Docker credentials.
+
+**Face scanner not working**
+- Run `node download-models.cjs` from `apps/web` to download model files.
+- Webcam requires `localhost` in dev or HTTPS in production. Grant camera permissions in the browser.
+
+**`@attendance/shared` not found**
+- Run `npm run build -w @attendance/shared` from the root, or re-run `npm install`.
+
+**Unauthorized / Invalid token**
+- JWT tokens expire after **8 hours** — log in again.
+- Ensure `JWT_SECRET` in `.env` has not changed since the token was issued.
+
+**`npx prisma db update` fails**
+- Make sure you are inside `apps/api`, not the root.
+- Confirm the Docker container is running and PostgreSQL version is 15+.
