@@ -1,3 +1,11 @@
+.attendance-clock {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 1.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── Setup Screen ── */
 .attendance-setup {
   max-width: 520px;

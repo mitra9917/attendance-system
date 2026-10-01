@@ -26,6 +26,8 @@ export function Router() {
           <Route path="/" element={<Navigate to="/attendance" replace />} />
           <Route path="/attendance" element={<Attendance />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/manage-course" element={<Register />} />
+          <Route path="/manage-student" element={<Register />} />
           <Route path="/view" element={<View />} />
           <Route path="/students/:id/enroll" element={<FaceEnrollment />} />
         </Route>

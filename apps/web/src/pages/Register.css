@@ -1,5 +1,15 @@
 .register-page { display: flex; flex-direction: column; gap: 1.25rem; }
 
+.register-section-header {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+.register-section-header h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0;
+}
+
 .register-page .page-header h1 {
   font-size: 1.75rem;
   font-weight: 700;

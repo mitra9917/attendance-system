@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import * as faceapi from "face-api.js";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { fetchApi } from "../lib/api";
 import { Modal } from "../components/Modal";
 import {
@@ -50,50 +50,48 @@ interface Student {
 type Tab =
   "course" | "student" | "bulk-import" | "manage-courses" | "manage-students";
 
+function tabFromPath(pathname: string): Tab | null {
+  if (pathname === "/manage-course") return "manage-courses";
+  if (pathname === "/manage-student") return "manage-students";
+  if (pathname === "/register") return null;
+  return "course";
+}
+
 export function Register() {
-  const [activeTab, setActiveTab] = useState<Tab>("course");
+  const location = useLocation();
+  const isCourseRegistrationHub = location.pathname === "/register";
+  const [activeTab, setActiveTab] = useState<Tab | null>(() =>
+    tabFromPath(location.pathname),
+  );
+
+  useEffect(() => {
+    setActiveTab(tabFromPath(location.pathname));
+  }, [location.pathname]);
 
   return (
     <div className="register-page">
-      <div className="page-header">
-        <div>
-          <h1>Register</h1>
-          <p>Create courses, register students, and manage existing records</p>
+      {isCourseRegistrationHub && (
+        <div className="register-tabs">
+          <button
+            className={`tab-btn ${activeTab === "course" ? "active" : ""}`}
+            onClick={() => setActiveTab("course")}
+          >
+            <BookOpen size={18} /> Register Course
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "student" ? "active" : ""}`}
+            onClick={() => setActiveTab("student")}
+          >
+            <UserPlus size={18} /> Register Student
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "bulk-import" ? "active" : ""}`}
+            onClick={() => setActiveTab("bulk-import")}
+          >
+            <FileSpreadsheet size={18} /> Bulk Import Students
+          </button>
         </div>
-      </div>
-
-      <div className="register-tabs">
-        <button
-          className={`tab-btn ${activeTab === "course" ? "active" : ""}`}
-          onClick={() => setActiveTab("course")}
-        >
-          <BookOpen size={18} /> Register Course
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "student" ? "active" : ""}`}
-          onClick={() => setActiveTab("student")}
-        >
-          <UserPlus size={18} /> Register Student
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "bulk-import" ? "active" : ""}`}
-          onClick={() => setActiveTab("bulk-import")}
-        >
-          <FileSpreadsheet size={18} /> Bulk Import
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "manage-courses" ? "active" : ""}`}
-          onClick={() => setActiveTab("manage-courses")}
-        >
-          <List size={18} /> Manage Courses
-        </button>
-        <button
-          className={`tab-btn ${activeTab === "manage-students" ? "active" : ""}`}
-          onClick={() => setActiveTab("manage-students")}
-        >
-          <GraduationCap size={18} /> Manage Students
-        </button>
-      </div>
+      )}
 
       <div className="tab-content">
         {activeTab === "course" && <RegisterCourse />}
@@ -104,6 +102,10 @@ export function Register() {
       </div>
     </div>
   );
+}
+
+function courseOptionLabel(c: Course): string {
+  return `${c.slotPattern}: ${c.code} ${c.name}`;
 }
 
 // ─────────────────────────────────────────
@@ -285,7 +287,6 @@ function RegisterCourse() {
     </div>
   );
 }
-
 // ─────────────────────────────────────────
 // Register Student Tab
 // ─────────────────────────────────────────
@@ -881,7 +882,6 @@ function RegisterStudent() {
     </div>
   );
 }
-
 // ─────────────────────────────────────────
 // Bulk Import Students Tab
 // ─────────────────────────────────────────
@@ -1025,17 +1025,8 @@ function BulkImportStudents() {
 
   return (
     <div className="register-panel">
-      <div className="panel-header">
-        <div className="panel-icon">
-          <FileSpreadsheet size={22} />
-        </div>
-        <div>
-          <h2>Bulk Import Students</h2>
-          <p>
-            Select a course and upload a CSV with Serial No, Regn No, and Name
-            columns
-          </p>
-        </div>
+      <div className="page-header register-section-header">
+        <h1>Student Registration: Bulk Import Students</h1>
       </div>
 
       {message && (
@@ -1064,8 +1055,7 @@ function BulkImportStudents() {
               >
                 {courses.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.code} — {c.name} ({c.type === "LAB" ? "🧪 " : ""}
-                    {c.slotPattern})
+                    {courseOptionLabel(c)}
                   </option>
                 ))}
               </select>
@@ -1075,22 +1065,6 @@ function BulkImportStudents() {
 
         <div className="form-group">
           <label>Upload CSV File *</label>
-          <p className="field-hint">
-            Upload a CSV containing Serial No, Regn No, and Name. Email is optional.
-          </p>
-          <pre
-            style={{
-              fontSize: "0.8rem",
-              background: "var(--bg-card)",
-              padding: "0.5rem",
-              borderRadius: "4px",
-              border: "1px solid var(--border)",
-              marginBottom: "1rem",
-              color: "var(--text-muted)",
-            }}
-          >
-            Serial No, Regn No, Name, Email (optional)
-          </pre>
           <div className="csv-upload-zone">
             <input
               id="bulk-csv-file"
@@ -1183,15 +1157,12 @@ function BulkImportStudents() {
           onClick={handleImport}
           disabled={!canImport}
         >
-          {isImporting
-            ? "Importing..."
-            : `Import ${parsedRows.length > 0 ? parsedRows.length : ""} Student${parsedRows.length === 1 ? "" : "s"}`}
+          {isImporting ? "Submitting..." : "Submit"}
         </button>
       </div>
     </div>
   );
 }
-
 // ─────────────────────────────────────────
 // Manage Courses Tab
 // ─────────────────────────────────────────
@@ -1267,14 +1238,12 @@ function ManageCourses() {
                 <th>Name</th>
                 <th>Type</th>
                 <th>Slot Pattern</th>
-                <th style={{ textAlign: "center" }}>Classes/Week</th>
                 <th style={{ textAlign: "center" }}>Students</th>
                 <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {courses.map((course) => {
-                const blocks = getBlocksForPattern(course.slotPattern);
                 return (
                   <tr key={course.id}>
                     <td style={{ fontWeight: 600, fontFamily: "monospace" }}>
@@ -1296,14 +1265,6 @@ function ManageCourses() {
                       }}
                     >
                       {course.slotPattern}
-                    </td>
-                    <td
-                      style={{
-                        color: "var(--text-muted)",
-                        textAlign: "center",
-                      }}
-                    >
-                      {blocks.length}
                     </td>
                     <td
                       style={{
@@ -1335,7 +1296,6 @@ function ManageCourses() {
     </div>
   );
 }
-
 // ─────────────────────────────────────────
 // Manage Students Tab
 // ─────────────────────────────────────────
