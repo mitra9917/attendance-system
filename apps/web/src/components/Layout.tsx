@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import {
-  LogOut, ClipboardList, UserPlus, Menu, Eye, Mail,
+  LogOut, ClipboardList, UserPlus, Menu, Eye, Mail, List, GraduationCap,
 } from 'lucide-react';
 import { fetchApi } from '../lib/api';
 import './Layout.css';
@@ -44,9 +44,11 @@ export function Layout() {
   };
 
   const navItems = [
-    { to: '/attendance', icon: <ClipboardList size={20} />, label: 'Daily Attendance' },
-    { to: '/register', icon: <UserPlus size={20} />, label: 'Register' },
-    { to: '/view', icon: <Eye size={20} />, label: 'View' },
+    { to: '/attendance', icon: <ClipboardList size={20} />, label: 'Online Attendance' },
+    { to: '/register', icon: <UserPlus size={20} />, label: 'Course Registration' },
+    { to: '/manage-course', icon: <List size={20} />, label: 'Manage Course' },
+    { to: '/manage-student', icon: <GraduationCap size={20} />, label: 'Manage Student' },
+    { to: '/view', icon: <Eye size={20} />, label: 'View Reports' },
   ];
 
   const closeSidebar = () => setSidebarOpen(false);

@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
 import { fetchApi } from "../lib/api";
 import {
-  CalendarDays,
   ChevronRight,
   CheckCircle2,
   XCircle,
-  Clock,
   Scan,
   UserCheck,
   LayoutList,
@@ -71,9 +69,7 @@ export function Attendance() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState("");
-  const [selectedDate, setSelectedDate] = useState(
-    new Date().toISOString().split("T")[0],
-  );
+  const [clock, setClock] = useState(() => new Date());
   const [isStarting, setIsStarting] = useState(false);
   const [setupError, setSetupError] = useState("");
 
@@ -139,6 +135,22 @@ export function Attendance() {
       window.history.replaceState({}, "", next);
     }
   }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => setClock(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const selectedDate = clock.toISOString().split("T")[0];
+  const clockDisplay = clock.toLocaleString(undefined, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 
   useEffect(() => {
     fetchApi("/courses")
@@ -361,10 +373,7 @@ export function Attendance() {
     return (
       <div className="attendance-setup">
         <div className="page-header">
-          <div>
-            <h1>Daily Attendance</h1>
-            <p>Select a date and course to begin an attendance session</p>
-          </div>
+          <h1>Online Attendance</h1>
         </div>
 
         {gmailNotice && (
@@ -376,10 +385,7 @@ export function Attendance() {
         )}
 
         <div className="setup-card page-card">
-          <div className="setup-icon">
-            <CalendarDays size={32} />
-          </div>
-          <h2>Start Attendance Session</h2>
+          <p className="attendance-clock" aria-live="polite">{clockDisplay}</p>
 
           {setupError && <div className="error-alert">{setupError}</div>}
 
@@ -389,16 +395,6 @@ export function Attendance() {
             </div>
           ) : (
             <div className="setup-form">
-              <div className="form-group">
-                <label htmlFor="att-date">Date</label>
-                <input
-                  id="att-date"
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                />
-              </div>
-
               <div className="form-group">
                 <label htmlFor="att-course">Course</label>
                 <select
@@ -417,38 +413,6 @@ export function Attendance() {
                     ))
                   )}
                 </select>
-              </div>
-
-              <div className="form-group">
-                <label>
-                  Classes on {dayOfWeek || "..."} ({selectedDate})
-                </label>
-                {isLoadingCourses ? (
-                  <div className="schedule-empty">Loading slots...</div>
-                ) : activeCourse && dayOfWeek ? (
-                  activeBlocks.length > 0 ? (
-                    <div className="scheduled-blocks">
-                      {activeBlocks.map((b, i) => (
-                        <div key={i} className="schedule-slot-chip">
-                          <Clock size={15} />
-                          <strong>{b.code}</strong>
-                          <span className="slot-time">
-                            {b.startTime} – {b.endTime}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="schedule-empty">
-                      No classes scheduled on {dayOfWeek} for this course.
-                    </div>
-                  )
-                ) : (
-                  <div className="schedule-empty">
-                    Select a course and a valid weekday to view scheduled
-                    classes.
-                  </div>
-                )}
               </div>
 
               <button
